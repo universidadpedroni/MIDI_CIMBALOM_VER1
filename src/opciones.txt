@@ -1,0 +1,112 @@
+// https://forum.pjrc.com/threads/49815-piezo-velocity/page3
+/* Use a Piezo sensor (percussion / drum) to send USB MIDI note on
+   messages, where the "velocity" represents how hard the Piezo was
+   tapped.
+
+   Connect a Pieze sensor to analog pin A0.  This example was tested
+   with Murata 7BB-27-4L0.  Almost any piezo sensor (not a buzzer with
+   built-in oscillator electronics) may be used.  However, Piezo
+   sensors are easily damaged by excessive heat if soldering.  It
+   is highly recommended to buy a Piezo with wires already attached!
+
+   Use a 100K resistor between A0 to GND, to give the sensor a "load".
+   The value of this resistor determines how "sensitive" the circuit is.
+
+   A pair of 1N4148 diodes are recommended to protect the analog pin.
+   The first diode connects to A0 with its stripe (cathode) and the other
+   side to GND.  The other diode connects its non-stripe (anode) side to
+   A0, and its stripe (cathode) side to 3.3V.
+
+   Sensitivity may also be tuned with the map() function.  Uncomment
+   the Serial.print lines to see the actual analog measurements in the
+   Arduino Serial Monitor.
+
+   You must select MIDI from the "Tools > USB Type" menu
+
+   This example code is in the public domain.
+   *multi-pad extension by oddson (under-tested)*
+*/
+
+const int channel = 10;  // General MIDI: channel 10 = percussion sounds
+const int PINS = 4;     // number of signals incoming
+
+const int note[PINS] = {36,37,38,39};     // array of MIDI note values for read signals
+
+const int analogPin[PINS] = {A0,A1,A2,A3}; //array of analog PINs 
+const int thresholdMin = 60;  // minimum reading, avoid noise and false starts
+const int peakTrackMillis = 12;
+const int aftershockMillis = 25; // aftershocks & vibration reject
+
+int state[PINS];  // 0=idle, 1=looking for peak, 2=ignore aftershocks
+int peak[PINS];   // remember the highest reading
+int piezo[PINS];
+elapsedMillis msec[PINS]; // timers to end states 1 and 2
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial && millis() < 2500) /* wait for serial monitor */ ;
+  Serial.println("Piezo Peak Capture");
+}
+
+
+void loop() {
+  for (int i=0;i<PINS;i++){
+    //delay(20);
+    piezo[i] = analogRead(analogPin[i]);
+ 
+  peakDetect(i);
+  // Add other tasks to loop, but avoid using delay() or waiting.
+  // You need loop() to keep running rapidly to detect Piezo peaks!
+
+}
+  // MIDI Controllers should discard incoming MIDI messages.
+  // http://forum.pjrc.com/threads/24179-...ses-midi-crash
+  while (usbMIDI.read()) {
+    // ignore incoming messages
+  }
+}
+
+
+void peakDetect(int i) {
+
+        //Serial.println(state[i]);
+
+  switch (state[i]) {
+    // IDLE state: wait for any reading is above threshold.  Do not set
+    // the threshold too low.  You don't want to be too sensitive to slight
+    // vibration.
+    case 0:
+      if (piezo[i] > thresholdMin) {
+        //Serial.print("begin peak track ");
+        //Serial.println(piezo[i]);
+        peak[i] = piezo[i];
+        msec[i] = 0;
+        state[i] = 1;
+      }
+      return;
+
+    // Peak Tracking state: capture largest reading
+    case 1:
+      if (piezo[i] > peak[i]) {
+        peak[i] = piezo[i];     
+      }
+      if (msec[i] >= peakTrackMillis) {
+        //Serial.print("peak = ");
+        //Serial.println(peak);
+        int velocity = map(peak[i], thresholdMin, 1023, 1, 127);
+        usbMIDI.sendNoteOn(note[i], velocity, channel);
+        msec[i] = 0;
+        state[i] = 2;
+      }
+      return;
+
+    // Ignore Aftershock state: wait for things to be quiet again.
+    default:
+      if (piezo[i] > thresholdMin) {
+        msec[i] = 0; // keep resetting timer if above threshold
+      } else if (msec[i] > aftershockMillis) {
+        usbMIDI.sendNoteOff(note[i], 0, channel);
+        state[i] = 0; // go back to idle when
+      }
+  }
+}
