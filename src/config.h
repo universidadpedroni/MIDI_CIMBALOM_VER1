@@ -1,6 +1,8 @@
 // CONFIGURATION FILE
 #include <Arduino.h>
 
+#define DEBUG false
+
 const long BAUDRATE = 115200;       // Baudrte for serial com
 const long MIDI_BAUDRATE = 31250;    // Baudrate for MIDI port
 
@@ -54,8 +56,9 @@ int sustainlastState = 1;
 // GENERALES
 //https://anotherproducer.com/online-tools-for-musicians/midi-cc-list/
 
-const int MIDI_CHANNEL = 1;
+const int MIDI_CHANNEL = 5;
 const int NOTE_ON = 0x90;
 const int NOTE_OFF = 0x80;
-const int SUSTAIN = 0x64;       // sustain pedal
+const int CONTROL_CHANGE = 0xB0;
+const int SUSTAIN = 0x40;       // sustain pedal
 // const int AFTERTOUCH = 0xA0;
