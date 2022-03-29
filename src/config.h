@@ -40,7 +40,7 @@ const int MUX_1_ADC = GPIO_NUM_0;       // ADC2
 // Midi constants
 // PARA LOS PIEZOS
 const int SENSOR_NUMBER_PER_MULTIPLEXOR = 8;     // Amount of sensors per Multiplexer
-const int MULTIPLEXORS = 2;                   // Amount of multiplexors per controller
+const int MULTIPLEXORS = 1;                   // Amount of multiplexors per controller
 const int SENSOR_NUMBER_TOTAL = MULTIPLEXORS * SENSOR_NUMBER_PER_MULTIPLEXOR;
 int currentState[16] = {0};
 int lastState[16] =  {0};    // the last state of the sensors
