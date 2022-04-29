@@ -1,0 +1,83 @@
+//void ADS1015Setup(int i);
+//void ADS1015Test(int i);
+
+// ON SETUP()
+ // Setup I2C and ADCs
+  Wire.begin();
+  //Wire.setClock(400000);
+  //Serial.println(Wire.getClock());
+  for (int i = 0; i < ADS_INSTALLED; i++)
+  {
+    ADS1015Setup(i);
+  }
+
+  void ADS1015Test(int i)
+{
+  //int value = ads[i].readADC_SingleEnded(0);
+  int value = analogRead(GPIO_NUM_15);
+  Serial << value << CR;
+}
+
+void ADS1015Setup(int i)
+{
+
+  // Begin
+  if (!ads[i].begin(ADS_ADDRESS[i])) 
+  {
+    
+    Serial << F("No se encuentra ADC ") << i << CR;
+    
+  }
+  else
+  {
+     // Start convertion
+    
+    ads[i].setDataRate(RATE_ADS1015_3300SPS);
+    
+  }
+  
+}
+
+
+void cimbalomUpdate()
+{
+  static int j = 0b00000000;
+
+  //   Direccionar los multiplexores
+  digitalWrite(MUX_PIN[0],bitRead(j,0));
+  digitalWrite(MUX_PIN[1],bitRead(j,1));
+  digitalWrite(MUX_PIN[2],bitRead(j,2));
+  digitalWrite(MUX_PIN[3],bitRead(j,3));
+  
+
+  // Lectura de ADCs. Se leen los 4 juntos.
+  //currentValue[j] = ads[0].readADC_SingleEnded(0);
+  //currentValue[j + 16] = ads[1].readADC_SingleEnded(0);
+  //currentValue[j + 32] = ads[2].readADC_SingleEnded(0);
+  //currentValue[j + 48] = ads[3].readADC_SingleEnded(0);
+  currentValue[j + 32] = 0;
+  currentValue[j + 64] = 0;
+
+  // TO DO: Moving average filter
+
+  // Buscar notas
+  findNotes(j);
+  findNotes(j + 16);
+  findNotes(j + 32);
+  findNotes(j + 64);
+
+ // Actualizar el indice
+  j < SENSOR_TOTAL_NUMBER ? j++ : j = 0;
+}
+
+
+//const int MUX_PIN[] = {GPIO_NUM_15, GPIO_NUM_5, GPIO_NUM_18, GPIO_NUM_19}; // pines para direccionar los multiplexores
+//const int MUX_PIN[] = {GPIO_NUM_13, GPIO_NUM_5, GPIO_NUM_18, GPIO_NUM_19}; // CAMBIAR EL 13
+
+
+// ADC constants and Pins
+const int ADS_INSTALLED = 1;
+const int ADS_ADDRESS[] = {0x48, 0x49, 0x4A, 0x4B};
+//const int ADS_READY_PIN[] = {GPIO_NUM_15, GPIO_NUM_4, GPIO_NUM_5, GPIO_NUM_18};
+//bool ADS_DATA_READY[] = {false, false, false, false};
+//int ADS_DATA_VALUE[] = {0, 0, 0, 0};

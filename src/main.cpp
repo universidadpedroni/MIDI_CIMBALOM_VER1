@@ -2,7 +2,11 @@
 #include <config.h>
 #include <Streaming.h>
 #include <blink.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
+//#include <Wire.h>
+//#include <Adafruit_BusIO_Register.h>
+//#include <Adafruit_ADS1X15.h>
+
 
 // https://forum.arduino.cc/t/reading-piezo-for-midi-note-velocity/69277
 // https://iq.opengenus.org/bitwise-division/
@@ -10,65 +14,103 @@
 // Lo mejor está en un PDF que se llama Arduino-midi.pdf
 
 
-blink ledBlink(LED_BUILTIN);
-SoftwareSerial SerialMidi(SERIAL_MIDI_RX,SERIAL_MIDI_TX);
+blink ledBlink(PIN_LED);
+//Adafruit_ADS1015 ads[ADS_INSTALLED];
 
 
-void peakDetect(int Voltage);
-void doSensorScan();
-void lookForChange();
-void saveCurrentState();
 void sendMIDI(int cmd, int data1, int data2);
 void sustainPedalUpdate();
+void cimbalomUpdate();
 void TestMIDI(int repeticiones);
-#ifdef ARDUINO_ARCH_AVR
-  void AnalogReadArduinoUNO(int i);
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-  void AnalogReadESP32(int i);
-#endif
+void findNotes(int j);
 
 
-void setup() 
+
+void setup()
 {
-  delay(2000);
-  ledBlink.init();
   Serial.begin(BAUDRATE);
-  //TestMIDI(5);
-#if DEBUG
-  Serial << FIRMWARE << F("Compitation Date: ") << __DATE__ << F(", ") << __TIME__ << CR;
-#endif
-  // Pinout Config
+  SerialMidi.begin(MIDI_BAUDRATE);
+    //TestMIDI(5);
+  ledBlink.init();
+  
+  
+ 
+  analogReadResolution(16);
+  
   pinMode(PIN_SPEED,OUTPUT);
-  pinMode(MUX_PIN_0,OUTPUT);
-  pinMode(MUX_PIN_1,OUTPUT);
-  pinMode(MUX_PIN_2,OUTPUT);
+
   pinMode(PIN_SUSTAIN_PEDAL,INPUT_PULLUP);
   
-  
+  // Serial Midi Port  
   SerialMidi.begin(MIDI_BAUDRATE);
-#ifdef ARDUINO_ARCH_ESP32
-  analogReadResolution(10); // Para hacerlo compatible con Arduino UNO.
-#endif
+
 #if DEBUG
+  Serial << FIRMWARE << F("Compitation Date: ") << __DATE__ << F(", ") << __TIME__ << CR << F("Hardware:");
+  Serial << F("ESP32") << CR;
+  Serial << F("TO DO: Enter Setup mode to adjust threshold and release time when button is pressed \n");
+  Serial << F("Core used: ") << xPortGetCoreID() << CR;
   Serial << F("Setup Finished. Piezo Capture...\n");
+
 #endif
+}
+
+void loop()
+{
+  digitalWrite(PIN_SPEED,HIGH);
+  ledBlink.update(LED_INTERVAL);
+  sustainPedalUpdate();
+  cimbalomUpdate();
+  
+  
+  digitalWrite(PIN_SPEED,LOW);
+  
    
 }
 
-void loop() 
+
+
+
+void cimbalomUpdate()
 {
-  digitalWrite(PIN_SPEED,HIGH);
+  // Lectura de ADCs. Se leen los 4 juntos.
+  currentValue[0] = analogRead(GPIO_NUM_15);  // ADC2_3
+  currentValue[2] = analogRead(GPIO_NUM_4);   // ADC2_0
+  currentValue[1] = analogRead(GPIO_NUM_2);   // ADC2_2
+  currentValue[3] = analogRead(GPIO_NUM_13);  // ADC2_4
+  
+  
+  // TO DO: Moving average filter
 
-  doSensorScan();
-  lookForChange();
-  saveCurrentState();
-  sustainPedalUpdate();
-
-  ledBlink.update(LED_INTERVAL);
-  digitalWrite(PIN_SPEED,LOW);
+  // Buscar notas
+  //findNotes(0);
+  //findNotes(1);
+  findNotes(0);
+  //findNotes(3);
   
 }
+// ESTA FUNCIÓN FALLA CON MÁS DE UN ADC
+void findNotes(int j)
+{
+  
+  // State machine
+    if ((lastValue[j] <= currentValue[j]) & (currentValue[j] >= THRESHOLD[j]) & ((millis() - lastTimeStateChange[j]) >= DELTA_TIME[j]))
+    {
+      //sendMIDI()
+#if DEBUG
+      static long contadorDeNotas = 1;
+      Serial << F("Note Nº ") << contadorDeNotas << F(" found, Amplitude: ") << currentValue[j] << F("\n");
+      contadorDeNotas++;
+#else
+      sendMIDI(NOTE_ON,60,currentValue[j]);
+#endif
+
+      lastTimeStateChange[j] = millis();
+    }
+    lastValue[j] = currentValue[j];
+
+}
+
+
 
 void sustainPedalUpdate()
 {
@@ -89,66 +131,6 @@ void sustainPedalUpdate()
 }
 
 
-void doSensorScan()
-{
-  for (int i = 0; i  < SENSOR_NUMBER_PER_MULTIPLEXOR; i++)
-  {
-    digitalWrite(MUX_PIN_0, i & 0x1);
-    digitalWrite(MUX_PIN_1, (i>>1) & 0x1);
-    digitalWrite(MUX_PIN_2, (i>>2) & 0x1);
-#ifdef ARDUINO_ARCH_AVR
-    AnalogReadArduinoUNO(i);
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-    AnalogReadESP32(i);
-#endif
-  }
-}
-
-// the value of threshold determins the on / off point
-void lookForChange()
-{
-  int ledVal = 0;
-  int ledMask = 1;
-
-  for (int i = 0; i < SENSOR_NUMBER_TOTAL; i++)
-  {
-    if(currentState[i] < THRESHOLD)  ledVal |= ledMask;  // bitwise or operation https://www.arduino.cc/reference/tr/language/structure/compound-operators/compoundbitwiseor/
-    ledMask = ledMask << 1;
-
-  }
-  if (lastLedVal != ledVal)   // something changed!
-  {
-    ledMask = 1;
-    for( int i = 0; i < SENSOR_NUMBER_TOTAL; i++)
-    {
-      if ((ledMask & ledVal) != (ledMask & lastLedVal))
-      {
-        if((ledMask & ledVal) == 0) // note off
-        {
-          sendMIDI(NOTE_OFF, control[i], 0x00);
-        }
-        else
-        {
-          sendMIDI(NOTE_ON, control[i], (currentState[i] >> 3)); // SI CAMBIA EL CHIP, REVISAR QUE NÚMERO HAY QUE DIVIDIR POR 127 y AJUSTAR EL SHIFT
-          //controlSend(0x90, control[i], currentState[i]>>3);   // 1023 / 127 = 8
-        }
-      }
-      ledMask = ledMask << 1;
-    }
-    lastLedVal = ledVal;
-  }
-
-}
-
-void saveCurrentState()
-{  // save the current state for next time
- for(int i = 0; i < SENSOR_NUMBER_TOTAL; i++)
- {
-   lastState[i] = currentState[i];
- }
-}
-
 // plays a MIDI note or Control change..  Doesn't check to see that
 // cmd is greater than 127, or that data values are  less than 127:
 // Examples: 
@@ -166,9 +148,9 @@ void sendMIDI(int cmd, int data1, int data2)
 #if DEBUG
 	Serial.print(cmd);
 	Serial.print("\t");
-	Serial.print(pitch);
+	Serial.print(data1);
 	Serial.print("\t");
-	Serial.println(velocity);
+	Serial.println(data2);
 #else
   
   Serial.write(cmd);
@@ -177,24 +159,7 @@ void sendMIDI(int cmd, int data1, int data2)
 #endif
 
 }
-#ifdef ARDUINO_ARCH_AVR
-void AnalogReadArduinoUNO(int i)
-{
-  currentState[i] = analogRead(MUX_0_ADC);
-  delay(1);
-  currentState[i + 8] = analogRead(MUX_1_ADC);
 
-}
-#endif
-
-#ifdef ARDUINO_ARCH_ESP32
-void AnalogReadESP32(int i)
-{
-  currentState[i] = analogRead(MUX_0_ADC);
-  currentState[i + 8] = analogRead(MUX_1_ADC);
-  
-}
-#endif
 
 void TestMIDI(int repeticiones)
 {
