@@ -23,7 +23,8 @@ void sustainPedalUpdate();
 void cimbalomUpdate();
 void TestMIDI(int repeticiones);
 void findNotes(int j);
-
+void findNotes2(int j);
+void sendADCtoSerial(unsigned long interval, uint32_t delayTime);
 
 
 void setup()
@@ -47,11 +48,24 @@ void setup()
 #if DEBUG
   Serial << FIRMWARE << F("Compitation Date: ") << __DATE__ << F(", ") << __TIME__ << CR << F("Hardware:");
   Serial << F("ESP32") << CR;
-  Serial << F("TO DO: Enter Setup mode to adjust threshold and release time when button is pressed \n");
+  
   Serial << F("Core used: ") << xPortGetCoreID() << CR;
   Serial << F("Setup Finished. Piezo Capture...\n");
+  
+  /*
+  analogRead(GPIO_NUM_15);
+  delay(1000);
+  for(int i = 5; i > 0 ; i--)
+  {
+    Serial << F("Starting capture in: ") << i << CR;
+    delay(1000);
+  }
+  
+  sendADCtoSerial(2000,1);
+  */
 
 #endif
+//TODO: Enter Setup mode to adjust threshold and release time when button is pressed
 }
 
 void loop()
@@ -67,16 +81,27 @@ void loop()
    
 }
 
+void sendADCtoSerial(unsigned long interval, uint32_t delayTime)
+{
+  unsigned long initialTime = millis();
+  unsigned long currentTime = millis();
+  while (currentTime - initialTime <= interval)
+  {
+    currentTime = millis();
+    Serial << _FLOAT((float)(currentTime - initialTime) / 1000,4) << TAB << analogRead(GPIO_NUM_15) << CR;
+    delay(delayTime);
+  }
 
+}
 
 
 void cimbalomUpdate()
 {
   // Lectura de ADCs. Se leen los 4 juntos.
-  currentValue[0] = analogRead(GPIO_NUM_15);  // ADC2_3
-  currentValue[2] = analogRead(GPIO_NUM_4);   // ADC2_0
-  currentValue[1] = analogRead(GPIO_NUM_2);   // ADC2_2
-  currentValue[3] = analogRead(GPIO_NUM_13);  // ADC2_4
+  //currentValue[0] = analogRead(GPIO_NUM_15);  // ADC2_3
+  //currentValue[2] = analogRead(GPIO_NUM_4);   // ADC2_0
+  //currentValue[1] = analogRead(GPIO_NUM_2);   // ADC2_2
+  //currentValue[3] = analogRead(GPIO_NUM_13);  // ADC2_4
   
   
   // TO DO: Moving average filter
@@ -84,10 +109,73 @@ void cimbalomUpdate()
   // Buscar notas
   //findNotes(0);
   //findNotes(1);
-  findNotes(0);
+  findNotes2(0);
+  delay(10);
   //findNotes(3);
   
 }
+
+
+void findNotes2(int j)
+{
+  static long notasDetectadas = 0;
+
+  const float MIDI_GAIN = 127.0 / 10000.0;
+  const float SAMPLETIME = 0.01;
+  const float DERIVATIVE_THRESHOLD_LOW = 10000;
+  const float DERIVATIVE_THRESHOLD_HIGH = 30000;
+  const unsigned long DETECTION_TIME = 300;
+  
+  float movingAvVelocityk = 0;
+  float movingAvDerivk = 0;
+  static float movingAvVelocityk_1 = 0;
+  static float derivk[5] = {0};
+  static float amplik[3] = {0};
+  static unsigned long detectionTime = 0;
+  unsigned long currentTime = millis();
+  static int noteState = NOTE_OFF;
+
+
+  amplik[0] =  (float)analogRead(GPIO_NUM_15);
+  movingAvVelocityk = (amplik[0] + amplik[1] + amplik[2]) / 3;
+  derivk[0] = (movingAvVelocityk - movingAvVelocityk_1) / SAMPLETIME;
+  movingAvDerivk = (derivk[0] + derivk[1] + derivk[2] + derivk[3] + derivk[4]) / 5;
+  // Máquina de Estados
+  // 1. Nota OFF -> Nota ON
+  if ((noteState == NOTE_OFF) && (movingAvDerivk >= DERIVATIVE_THRESHOLD_LOW) && (currentTime - detectionTime >= DETECTION_TIME))
+  {
+    
+    noteState = NOTE_ON;
+    detectionTime = currentTime;
+    #if DEBUG
+    notasDetectadas++;
+    Serial << "Nota: " << notasDetectadas;
+    Serial <<", Derivada: " << movingAvDerivk; 
+    Serial << ", Amp: " << movingAvVelocityk; 
+    Serial << ", Vel:" << (int)(MIDI_GAIN * movingAvVelocityk) << CR;
+    #endif
+  }
+  // 2. Nota ON -> Nota ON
+  else if ((noteState == NOTE_ON) && (movingAvDerivk >= DERIVATIVE_THRESHOLD_HIGH) && (currentTime - detectionTime >= DETECTION_TIME))
+  {
+    noteState = NOTE_ON;
+    detectionTime = currentTime;
+    #if DEBUG
+    notasDetectadas++;
+    Serial << "Nota: " << notasDetectadas;
+    Serial <<", Derivada: " << movingAvDerivk; 
+    Serial << ", Amp: " << movingAvVelocityk; 
+    Serial << ", Vel:" << (int)(MIDI_GAIN * movingAvVelocityk) << CR;
+    #endif  
+  }
+  else if ((noteState == NOTE_ON) && (currentTime - detectionTime >= 4 * DETECTION_TIME))
+  {
+    noteState = NOTE_OFF;
+  }
+         
+}
+
+
 // ESTA FUNCIÓN FALLA CON MÁS DE UN ADC
 void findNotes(int j)
 {

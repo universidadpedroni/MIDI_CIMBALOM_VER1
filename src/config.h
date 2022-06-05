@@ -33,7 +33,7 @@ long THRESHOLD[SENSOR_TOTAL_NUMBER] = {30}; //(int) 0.025 * 1023 / 5; Dejo previ
 long currentValue[SENSOR_TOTAL_NUMBER] = {0};
 long lastValue[SENSOR_TOTAL_NUMBER] = {0};
 unsigned long lastTimeStateChange[SENSOR_TOTAL_NUMBER] = {0};
-unsigned long DELTA_TIME[SENSOR_TOTAL_NUMBER] = {300};     // [mseg] // Puede ser más. Las notas duran alrededor de 500ms
+unsigned long DELTA_TIME[SENSOR_TOTAL_NUMBER] = {100};     // [mseg] // Puede ser más. Las notas duran alrededor de 100ms
 
 
 // notes to play, corresponding to the 16 sensors:
