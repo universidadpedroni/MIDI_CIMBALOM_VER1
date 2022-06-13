@@ -81,3 +81,25 @@ const int ADS_ADDRESS[] = {0x48, 0x49, 0x4A, 0x4B};
 //const int ADS_READY_PIN[] = {GPIO_NUM_15, GPIO_NUM_4, GPIO_NUM_5, GPIO_NUM_18};
 //bool ADS_DATA_READY[] = {false, false, false, false};
 //int ADS_DATA_VALUE[] = {0, 0, 0, 0};
+
+// ESTA FUNCIÓN FALLA CON MÁS DE UN ADC
+void findNotes(int j)
+{
+  
+  // State machine
+    if ((lastValue[j] <= currentValue[j]) & (currentValue[j] >= THRESHOLD[j]) & ((millis() - lastTimeStateChange[j]) >= DELTA_TIME[j]))
+    {
+      //sendMIDI()
+#if DEBUG
+      static long contadorDeNotas = 1;
+      Serial << F("Note Nº ") << contadorDeNotas << F(" found, Amplitude: ") << currentValue[j] << F("\n");
+      contadorDeNotas++;
+#else
+      sendMIDI(NOTE_ON,60,currentValue[j]);
+#endif
+
+      lastTimeStateChange[j] = millis();
+    }
+    lastValue[j] = currentValue[j];
+
+}

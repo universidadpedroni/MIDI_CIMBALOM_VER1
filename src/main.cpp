@@ -20,9 +20,7 @@ blink ledBlink(PIN_LED);
 
 void sendMIDI(int cmd, int data1, int data2);
 void sustainPedalUpdate();
-void cimbalomUpdate();
 void TestMIDI(int repeticiones);
-void findNotes(int j);
 void findNotes2(int j);
 void sendADCtoSerial(unsigned long interval, uint32_t delayTime);
 
@@ -51,7 +49,8 @@ void setup()
   
   Serial << F("Core used: ") << xPortGetCoreID() << CR;
   Serial << F("Setup Finished. Piezo Capture...\n");
-  
+  analogRead(GPIO_NUM_15);
+  delay(400);
   /*
   analogRead(GPIO_NUM_15);
   delay(1000);
@@ -70,14 +69,34 @@ void setup()
 
 void loop()
 {
-  digitalWrite(PIN_SPEED,HIGH);
+  //float velocityVector[NUM_SENSORES] = {0,0,0,0};
+  //bool sendToSerial = false;
+  
   ledBlink.update(LED_INTERVAL);
   sustainPedalUpdate();
-  cimbalomUpdate();
+
+  findNotes2(0);
+  findNotes2(1);
+  findNotes2(2);
+  findNotes2(3);
+  /*
+  for (int sensor = 0; sensor < NUM_SENSORES; sensor++)
+  {
+    velocityVector[sensor] = (int)(MIDI_GAIN * findNotes2(sensor));
+    if (velocityVector[sensor] > 0) sendToSerial = true;
+  }
   
+
+  if (sendToSerial)
+  {
+    sendToSerial = false;
+    Serial.printf("Sens 1: %.2f \t Sens 2: %.2f \t Sens 3: %.2f \t Sens 4: %.2f \n",
+                   velocityVector[0],velocityVector[1],velocityVector[2],velocityVector[3]);
+  } 
+  */   
+
   
-  digitalWrite(PIN_SPEED,LOW);
-  
+       
    
 }
 
@@ -95,108 +114,128 @@ void sendADCtoSerial(unsigned long interval, uint32_t delayTime)
 }
 
 
-void cimbalomUpdate()
+
+void findNotes2(int sensor)
 {
-  // Lectura de ADCs. Se leen los 4 juntos.
-  //currentValue[0] = analogRead(GPIO_NUM_15);  // ADC2_3
-  //currentValue[2] = analogRead(GPIO_NUM_4);   // ADC2_0
-  //currentValue[1] = analogRead(GPIO_NUM_2);   // ADC2_2
-  //currentValue[3] = analogRead(GPIO_NUM_13);  // ADC2_4
-  
-  
-  // TO DO: Moving average filter
-
-  // Buscar notas
-  //findNotes(0);
-  //findNotes(1);
-  findNotes2(0);
-  delay(10);
-  //findNotes(3);
-  
-}
-
-
-void findNotes2(int j)
-{
+  // SPEED: 65uSeg!!!!
+  digitalWrite(GPIO_NUM_23,HIGH);
   static long notasDetectadas = 0;
 
-  const float MIDI_GAIN = 127.0 / 10000.0;
-  const float SAMPLETIME = 0.01;
-  const float DERIVATIVE_THRESHOLD_LOW = 10000;
-  const float DERIVATIVE_THRESHOLD_HIGH = 30000;
-  const unsigned long DETECTION_TIME = 300;
   
-  float movingAvVelocityk = 0;
-  float movingAvDerivk = 0;
-  static float movingAvVelocityk_1 = 0;
-  static float derivk[5] = {0};
-  static float amplik[3] = {0};
-  static unsigned long detectionTime = 0;
+  
+  float movingAvVelocityk[NUM_SENSORES] = {0};
+  float movingAvDerivk[NUM_SENSORES] = {0};
+  static float movingAvVelocityk_1[NUM_SENSORES] = {0};
+  static float derivk[NUM_SENSORES][5] = {0};
+  static float amplik[NUM_SENSORES][3] = {0};
+  static unsigned long detectionTime[NUM_SENSORES] = {0};
   unsigned long currentTime = millis();
-  static int noteState = NOTE_OFF;
+  static int noteState[NUM_SENSORES] = {NOTE_OFF, NOTE_OFF, NOTE_OFF,NOTE_OFF};
+  static bool notaEnviada[NUM_SENSORES] = {false, false, false, false};
+  static float maxVelocity[NUM_SENSORES] = {0};
 
 
-  amplik[0] =  (float)analogRead(GPIO_NUM_15);
-  movingAvVelocityk = (amplik[0] + amplik[1] + amplik[2]) / 3;
-  derivk[0] = (movingAvVelocityk - movingAvVelocityk_1) / SAMPLETIME;
-  movingAvDerivk = (derivk[0] + derivk[1] + derivk[2] + derivk[3] + derivk[4]) / 5;
+  // Reading the amplitude of the signal and going through moving average filter
+  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]) * CANALES_GAIN[sensor];
+  movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
+  // Determining the first derivative of the signal ang going through moving average filter.
+  derivk[sensor][0] = (movingAvVelocityk[sensor] - movingAvVelocityk_1[sensor]) / SAMPLETIME;
+  
+  movingAvDerivk[sensor] = (derivk[sensor][0] + derivk[sensor][1] + 
+                            derivk[sensor][2] + derivk[sensor][3] + derivk[sensor][4]) / 5;
+  
   // Máquina de Estados
   // 1. Nota OFF -> Nota ON
-  if ((noteState == NOTE_OFF) && (movingAvDerivk >= DERIVATIVE_THRESHOLD_LOW) && (currentTime - detectionTime >= DETECTION_TIME))
+  if ((noteState[sensor] == NOTE_OFF) && 
+      (movingAvDerivk[sensor] >= DERIVATIVE_THRESHOLD_LOW) &&
+      (currentTime - detectionTime[sensor] >= DETECTION_TIME))
   {
     
-    noteState = NOTE_ON;
-    detectionTime = currentTime;
-    #if DEBUG
-    notasDetectadas++;
-    Serial << "Nota: " << notasDetectadas;
-    Serial <<", Derivada: " << movingAvDerivk; 
-    Serial << ", Amp: " << movingAvVelocityk; 
-    Serial << ", Vel:" << (int)(MIDI_GAIN * movingAvVelocityk) << CR;
-    #endif
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    notaEnviada[sensor] = false;
+    Serial.printf("%d Sensor %d, OFF_ON \n",millis(), sensor);
+    
   }
   // 2. Nota ON -> Nota ON
-  else if ((noteState == NOTE_ON) && (movingAvDerivk >= DERIVATIVE_THRESHOLD_HIGH) && (currentTime - detectionTime >= DETECTION_TIME))
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (movingAvDerivk[sensor] >= DERIVATIVE_THRESHOLD_HIGH) &&
+           (currentTime - detectionTime[sensor] >= DETECTION_TIME))
   {
-    noteState = NOTE_ON;
-    detectionTime = currentTime;
-    #if DEBUG
-    notasDetectadas++;
-    Serial << "Nota: " << notasDetectadas;
-    Serial <<", Derivada: " << movingAvDerivk; 
-    Serial << ", Amp: " << movingAvVelocityk; 
-    Serial << ", Vel:" << (int)(MIDI_GAIN * movingAvVelocityk) << CR;
-    #endif  
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    notaEnviada[sensor] = false;
+    Serial.printf("%d Sensor %d, ON_ON \n",millis(), sensor);
+
+    
+    
   }
-  else if ((noteState == NOTE_ON) && (currentTime - detectionTime >= 4 * DETECTION_TIME))
+  // 3. Nota ON -> Nota OFF
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (currentTime - detectionTime[sensor] >= 6 * DETECTION_TIME))
   {
-    noteState = NOTE_OFF;
+    noteState[sensor] = NOTE_OFF;
+    Serial.printf("%d Sensor %d, ON_OFF \n",millis(), sensor);
+    //sendMIDI(NOTE_OFF,CONTROL[sensor],0);
+    
   }
-         
-}
-
-
-// ESTA FUNCIÓN FALLA CON MÁS DE UN ADC
-void findNotes(int j)
-{
-  
-  // State machine
-    if ((lastValue[j] <= currentValue[j]) & (currentValue[j] >= THRESHOLD[j]) & ((millis() - lastTimeStateChange[j]) >= DELTA_TIME[j]))
+  // una vez detectada la nota, busco el máximo valor (dentro de un intervalo de tiempo)
+  if(noteState[sensor] == NOTE_ON &&
+    (currentTime - detectionTime[sensor]) < MAX_LATENCY && 
+     (notaEnviada[sensor] == false))
+  {
+    if ( maxVelocity[sensor] < movingAvVelocityk[sensor])
     {
-      //sendMIDI()
-#if DEBUG
-      static long contadorDeNotas = 1;
-      Serial << F("Note Nº ") << contadorDeNotas << F(" found, Amplitude: ") << currentValue[j] << F("\n");
-      contadorDeNotas++;
-#else
-      sendMIDI(NOTE_ON,60,currentValue[j]);
-#endif
-
-      lastTimeStateChange[j] = millis();
+      maxVelocity[sensor] = movingAvVelocityk[sensor];
     }
-    lastValue[j] = currentValue[j];
+    else
+    {
+       notaEnviada[sensor] = true;
+       if((int)(MIDI_GAIN * maxVelocity[sensor]) > MIDI_MINIMUM_VELOCITY)
+       {
+        //sendMIDI(NOTE_ON,CONTROL[sensor],(int)(MIDI_GAIN * maxVelocity[sensor]));
+        
+        
+        #if DEBUG
+        notasDetectadas++;
+        Serial.printf("t: %d \t Nota N: %d \t Sens: %d \t Vel: %d \n",
+                       millis(), notasDetectadas, sensor, (int)(MIDI_GAIN * maxVelocity[sensor]));
+        #endif
+        maxVelocity[sensor] = 0;
+       }
+       
+    }
+  }
+  // Si no encuentro la velocidad máxima de la latencia máxima permitida, envío la velocidad actual
+  else if (noteState[sensor] == NOTE_ON &&
+    (currentTime - detectionTime[sensor]) > MAX_LATENCY && 
+     (notaEnviada[sensor] == false))
+     {
+      Serial.println("..");
+       if((int)(MIDI_GAIN * maxVelocity[sensor]) > MIDI_MINIMUM_VELOCITY)
+       {
+        //sendMIDI(NOTE_ON,CONTROL[sensor],(int)(MIDI_GAIN * maxVelocity[sensor]));
+        maxVelocity[sensor] = 0;
+       }
 
+     }
+
+
+  // Updates
+  amplik[sensor][2] = amplik[sensor][1];
+  amplik[sensor][1] = amplik[sensor][0];
+  movingAvVelocityk_1[sensor] = movingAvVelocityk[sensor];
+  derivk[sensor][4] = derivk[sensor][3];
+  derivk[sensor][3] = derivk[sensor][2];
+  derivk[sensor][2] = derivk[sensor][1];
+  derivk[sensor][1] = derivk[sensor][0];
+
+  
+
+  digitalWrite(GPIO_NUM_23,LOW);    
 }
+
+
 
 
 
@@ -270,3 +309,100 @@ void TestMIDI(int repeticiones)
 }
 
 
+// COPIA DE LA FUNCIÓN FINDNOTES2 QUE FUNCIONA
+/*
+float findNotes2(int sensor)
+{
+  // SPEED: 65uSeg!!!!
+  digitalWrite(GPIO_NUM_23,HIGH);
+  static long notasDetectadas = 0;
+
+  
+  
+  float movingAvVelocityk[NUM_SENSORES] = {0};
+  float movingAvDerivk[NUM_SENSORES] = {0};
+  static float movingAvVelocityk_1[NUM_SENSORES] = {0};
+  static float derivk[NUM_SENSORES][5] = {0};
+  static float amplik[NUM_SENSORES][3] = {0};
+  static unsigned long detectionTime[NUM_SENSORES] = {0};
+  unsigned long currentTime = millis();
+  static int noteState[NUM_SENSORES] = {NOTE_OFF, NOTE_OFF, NOTE_OFF,NOTE_OFF};
+  
+  // Reading the amplitude of the signal and going through moving average filter
+  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]);
+  movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
+  // Determining the first derivative of the signal ang going through moving average filter.
+  derivk[sensor][0] = (movingAvVelocityk[sensor] - movingAvVelocityk_1[sensor]) / SAMPLETIME;
+  
+  movingAvDerivk[sensor] = (derivk[sensor][0] + derivk[sensor][1] + 
+                            derivk[sensor][2] + derivk[sensor][3] + derivk[sensor][4]) / 5;
+  
+  // Máquina de Estados
+  // 1. Nota OFF -> Nota ON
+  if ((noteState[sensor] == NOTE_OFF) && 
+      (movingAvDerivk[sensor] >= DERIVATIVE_THRESHOLD_LOW) &&
+      (currentTime - detectionTime[sensor] >= DETECTION_TIME))
+  {
+    
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    sendMIDI(NOTE_ON,CONTROL[sensor],(int)(MIDI_GAIN * movingAvVelocityk[sensor]));
+    
+    #if DEBUG
+    notasDetectadas++;
+    Serial << "Nota: " << notasDetectadas;
+    Serial << ", Sensor" << sensor;
+    Serial <<", Derivada: " << movingAvDerivk[sensor]; 
+    Serial << ", Amp: " << movingAvVelocityk[sensor]; 
+    Serial << ", Vel:" << (int)(MIDI_GAIN * movingAvVelocityk[sensor]) << CR;
+    #endif
+    
+  }
+  // 2. Nota ON -> Nota ON
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (movingAvDerivk[sensor] >= DERIVATIVE_THRESHOLD_HIGH) &&
+           (currentTime - detectionTime[sensor] >= DETECTION_TIME))
+  {
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    //sendMIDI(NOTE_OFF,CONTROL[sensor],0);
+    sendMIDI(NOTE_ON,CONTROL[sensor],(int)(MIDI_GAIN * movingAvVelocityk[sensor]));
+    
+    #if DEBUG
+    notasDetectadas++;
+    Serial << "Nota: " << notasDetectadas;
+    Serial << ", Sensor" << sensor;
+    Serial << ", Derivada: " << movingAvDerivk[sensor]; 
+    Serial << ", Amp: " << movingAvVelocityk[sensor]; 
+    Serial << ", Vel:" << (int)(MIDI_GAIN * movingAvVelocityk[sensor]) << CR;
+    #endif
+      
+  }
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (currentTime - detectionTime[sensor] >= 4 * DETECTION_TIME))
+  {
+    noteState[sensor] = NOTE_OFF;
+    //sendMIDI(NOTE_OFF,CONTROL[sensor],0);
+    
+    #if DEBUG
+    Serial << "Nota: " << notasDetectadas;
+    Serial << ", Sensor" << sensor;
+    Serial << "OFF" << CR;
+    #endif
+     
+  }
+  // Updates
+  amplik[sensor][2] = amplik[sensor][1];
+  amplik[sensor][1] = amplik[sensor][0];
+  movingAvVelocityk_1[sensor] = movingAvVelocityk[sensor];
+  derivk[sensor][4] = derivk[sensor][3];
+  derivk[sensor][3] = derivk[sensor][2];
+  derivk[sensor][2] = derivk[sensor][1];
+  derivk[sensor][1] = derivk[sensor][0];
+
+  return movingAvVelocityk[sensor];
+
+  digitalWrite(GPIO_NUM_23,LOW);    
+}
+
+*/

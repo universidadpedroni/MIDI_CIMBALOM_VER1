@@ -22,23 +22,6 @@ const int SERIAL_MIDI_RX = GPIO_NUM_16;
 
 const int PIN_SUSTAIN_PEDAL = GPIO_NUM_5;     // pin para el pedal de sustain
 
-
-
-// Midi constants
-// PARA LOS PIEZOS
-//const int SENSOR_NUMBER_PER_MULTIPLEXOR = 8;     // Amount of sensors per Multiplexer
-//const int MULTIPLEXORS = 2;                   // Amount of multiplexors per controller
-const int SENSOR_TOTAL_NUMBER = 4; //MULTIPLEXORS * SENSOR_NUMBER_PER_MULTIPLEXOR;
-long THRESHOLD[SENSOR_TOTAL_NUMBER] = {30}; //(int) 0.025 * 1023 / 5; Dejo previsto que sea ajustable por sensor
-long currentValue[SENSOR_TOTAL_NUMBER] = {0};
-long lastValue[SENSOR_TOTAL_NUMBER] = {0};
-unsigned long lastTimeStateChange[SENSOR_TOTAL_NUMBER] = {0};
-unsigned long DELTA_TIME[SENSOR_TOTAL_NUMBER] = {100};     // [mseg] // Puede ser más. Las notas duran alrededor de 100ms
-
-
-// notes to play, corresponding to the 16 sensors:
-char control[16] = { 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,72, 73, 74, 75};
-
 // PARA EL PEDAL DE SUSTAIN
 int sustainCurrentState = 1;    // =1 por el INPUT_PULLUP
 int sustainlastState = 1;
@@ -52,4 +35,26 @@ const int NOTE_OFF = 0x80;
 const int CONTROL_CHANGE = 0xB0;
 const int SUSTAIN = 0x40;       // sustain pedal
 // const int AFTERTOUCH = 0xA0;
+ 
+const int NUM_SENSORES = 4;
 
+
+const int CANALES_ADC[] = {GPIO_NUM_4,      // ADC2_0
+                           GPIO_NUM_2,      // ADC2_2
+                           GPIO_NUM_15,     // ADC2_3
+                           GPIO_NUM_13};    // ADC2_4
+
+const float CANALES_GAIN[] ={1.0, 1.25, 1.0, 1.0};
+
+// notes to play, corresponding to the 4 sensors:
+const int CONTROL[] = { 60, 61, 62, 63}; //, 64, 65, 66, 67, 68, 69, 70, 71,72, 73, 74, 75};
+
+
+const float MIDI_GAIN = 127.0 / 8000.0;
+const int MIDI_MINIMUM_VELOCITY = 40;   // Debajo de este valor no envío la nota.
+const int MAX_LATENCY = 200;
+const float SAMPLETIME = 65e-6;     // La rutina findnotes2 demora 65useg. 
+// TODO: revisar este número
+const float DERIVATIVE_THRESHOLD_LOW = 10000;
+const float DERIVATIVE_THRESHOLD_HIGH = 30000;
+const unsigned long DETECTION_TIME = 300;
