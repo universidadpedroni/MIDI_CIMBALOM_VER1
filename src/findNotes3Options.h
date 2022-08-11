@@ -26,30 +26,6 @@ const int CANALES_ADC[] = {GPIO_NUM_4,      // ADC2_0
                            GPIO_NUM_26};    // ADC2_9
 
 
-// notes to play, corresponding to the 4 sensors:
-const int CONTROL[] = { 36, 38, 40, 43,
-                        45, 47, 48, 50,
-                        52, 55}; 
-const char *NOTAS[] = {"C2", "D2", "E2", "G2",
-                       "A2", "B2", "C3", "D3",
-                       "E3", "G3"}; 
-
-
-  
-float Threshold_ON[NUM_SENSORES] = {12000, 10000, 15000, 10000,
-                                    4000, 4000, 4000, 5000,
-                                    12000, 12000};
-
-float Threshold_OFF[NUM_SENSORES] = {8000, 7000, 13000, 8000,
-                                     3000, 3000, 3000, 4000,
-                                     8000, 8000};
-
-const float  MAX_VELOCITY[NUM_SENSORES] = {17000, 17000, 17000, 17000,
-                                           17000, 17000, 17000, 17000,
-                                           17000, 17000 }; // Maximum measured velocity (17.000), usada solo en finNotes3()
-
-
-// TODO: Move all this to json
 int noteState[NUM_SENSORES] = {NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF,
                                NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF,
                                NOTE_OFF, NOTE_OFF};
@@ -65,3 +41,21 @@ unsigned long detectionTime[NUM_SENSORES] = {0};
 const unsigned long DETECTION_TIME = 300;
 float maxVelocity[NUM_SENSORES] = {0};
 unsigned long MAX_LATENCY = 150; // Must be lower than DETECTION_TIME
+
+// Constants with DEFAULT VALUES. All of this parameters are updated using a json file.
+
+// notes to play, corresponding to all sensors: 
+int CONTROL[] = { 36, 38, 40, 43,
+                        45, 47, 48, 50,
+                        52, 55}; 
+float Threshold_ON[NUM_SENSORES] = {12000, 10000, 15000, 10000,
+                                    4000, 4000, 4000, 5000,
+                                    12000, 12000};
+
+float Threshold_OFF[NUM_SENSORES] = {8000, 7000, 13000, 8000,
+                                     3000, 3000, 3000, 4000,
+                                     8000, 8000};
+
+float  MAX_VELOCITY[NUM_SENSORES] = {17000, 17000, 17000, 17000,
+                                     17000, 17000, 17000, 17000,
+                                     17000, 17000 }; // Maximum measured velocity (17.000), usada solo en finNotes3()

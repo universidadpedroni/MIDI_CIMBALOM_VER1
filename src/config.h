@@ -13,11 +13,6 @@ const long BAUDRATE = 115200;       // Baudrte for serial com
 const long MIDI_BAUDRATE = 31250;    // Baudrate for MIDI port
 #define SerialMidi Serial2
 
-#define FIRMWARE F("MIDI Cimbalon Ver 1.0\n")
-#define CR F("\n")
-#define TAB F("\t")
-#define COMMA F(",")
-
 // ledBlink constants
 const long LED_INTERVAL = 250;
 
@@ -30,5 +25,6 @@ const int PIN_SUSTAIN_PEDAL = GPIO_NUM_5;     // pin para el pedal de sustain
 int sustainCurrentState = 1;    // =1 por el INPUT_PULLUP
 int sustainlastState = 1;
 
- 
+// JSON FILE NAME
+#define JSON_FILE_NAME "/config.json" 
 
