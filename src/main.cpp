@@ -7,7 +7,7 @@
 #include <findNotes3Options.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
-
+#include "debugConstants.h"
 
 // https://forum.arduino.cc/t/reading-piezo-for-midi-note-velocity/69277
 // https://iq.opengenus.org/bitwise-division/
@@ -19,13 +19,12 @@
 
 blink ledBlink(PIN_LED);
 
-
+void GPIOSetup();
 void sendMIDI(int cmd, int data1, int data2);
 void sustainPedalUpdate();
 void TestMIDI(int repeticiones);
 void findNotes3(int sensor);
 void findNotes3NoVelocity(int sensor);
-//void sendADCtoSerial(unsigned long interval, uint32_t delayTime);
 void plotSignalAndThresholds(float Velocity, int noteState, float Threshold_ON, float Threshold_OFF);
 bool CargarConfiguracionDesdeSPIFF();
 bool GuardarConfiguracionEnSPIFF();
@@ -35,71 +34,105 @@ void showConfig();
 
 void setup()
 {
+  // Initial delay
   delay(2000);
-  pinMode(PIN_LED,OUTPUT);
+  // GPIO Setup
+  GPIOSetup();
   digitalWrite(PIN_LED,HIGH);
-
+  
+  // Serial ports setup
   Serial.begin(BAUDRATE);
+  Serial.flush();
   SerialMidi.begin(MIDI_BAUDRATE);
   SerialMidi.flush();
-  if (TEST_MIDI) TestMIDI(4);
   
+  // ADC Setup
   analogReadResolution(16);
-  
-  pinMode(PIN_SPEED,OUTPUT);
 
-  pinMode(PIN_SUSTAIN_PEDAL,INPUT_PULLUP);
-  
-      
-  if (DEBUG)
+  // SETUP y OTA quedaron con lógica negativa.
+  if (!digitalRead(PIN_SETUP))
   {
-    Serial << FIRMWARE << COMPILATION_DATE << __DATE__ << COMMA << __TIME__ << CR << HARDWARE ;
-    Serial << CORE_USED << xPortGetCoreID() << CR;
+    
+    while(1)
+    {
+      Serial.printf("%d, %d, %d, %d, %d, %d \n",
+                    (uint16_t)Threshold_DEFAULT,
+                    analogRead(CANALES_ADC[0]),
+                    analogRead(CANALES_ADC[1]),
+                    analogRead(CANALES_ADC[2]),
+                    analogRead(CANALES_ADC[3]),
+                    analogRead(CANALES_ADC[4]));
+
+             
+    }
   }
- 
+  
+  Debug(FIRMWARE); Debug(COMPILATION_DATE); Debug(__DATE__); Debug(COMMA); Debugln(__TIME__);
+  Debug(HARDWARE);
+  Debugf(CORE_USED, xPortGetCoreID());
+  
+  
+
+  if (TEST_MIDI) TestMIDI(4);
+
   bool ConfigCargadaDesdeSPIFF = CargarConfiguracionDesdeSPIFF();
   if (ConfigCargadaDesdeSPIFF)
   {
-    if(DEBUG) Serial << CONFIG_FROM_JSON;
+    Debug(CONFIG_FROM_JSON);
   }
   else
   {
-    if(DEBUG) Serial << LOAD_DEFAULTS;
+    Debug(LOAD_DEFAULTS);
     // TODO : Cargar config por defecto
     
   }
   if(DEBUG) showConfig();
   
-  // GuardarConfiguracionEnSPIFF();
+  GuardarConfiguracionEnSPIFF();
   
 
 //TODO: Enter Setup mode to adjust threshold and release time when button is pressed
-  delay(1000);
-  // TODO: Move LED To another pin
-  digitalWrite(LED_BUILTIN,LOW);
+  
+    // TODO Setup Function
+  
+  if (!digitalRead(PIN_OTA))
+  {
+    Debug(STARTING_OTA_UPDATE);
+    // TODO OTA Function
+  }
+
+   
+  //digitalWrite(PIN_LED,LOW);
   ledBlink.init();
-  if (DEBUG)Serial << SETUP_FINISHED;
+  Debug(SETUP_FINISHED);
 }
 
 void loop()
 {
   ledBlink.update(LED_INTERVAL);
   sustainPedalUpdate();
-  
+  findNotes3NoVelocity(0);
+  findNotes3NoVelocity(2);
+  findNotes3NoVelocity(4);
+
+  /*
   for (int i = 0; i < NUM_SENSORES; i++)
   {
     findNotes3NoVelocity(i);
 
   }
+  */
      
 }
 
+
 void showConfig()
 {
-  Serial << SYSTEM_CONFIG;
+  Serial.print(SYSTEM_CONFIG);
+  Serial.printf("Midi Channel Tx: %d \n", MIDI_CHANNEL);
   for (int i = 0; i < NUM_SENSORES; i ++)
   {
-    Serial << CHANNEL << i << TAB << NOTE << CONTROL[i] << TAB << NOTAS[CONTROL[i]] << TAB;
+    Serial << SENSOR << i << TAB << NOTE << CONTROL[i] << TAB << NOTAS[CONTROL[i]] << TAB;
     Serial << THRES_ON << Threshold_ON[i] << TAB << THRES_OFF << Threshold_OFF[i] << TAB;
     Serial << VEL_MAX << MAX_VELOCITY[i] << CR;
   }
@@ -120,6 +153,9 @@ bool CargarConfiguracionDesdeSPIFF()
     if(DEBUG) Serial.println();
     return false;
   }
+  else{
+    if(DEBUG) Serial.printf("Reading config file: %s \n", JSON_FILE_NAME);
+  }
   
   // Create
   DynamicJsonDocument doc(2048);
@@ -133,6 +169,9 @@ bool CargarConfiguracionDesdeSPIFF()
   else
   {
     if(DEBUG) Serial << LOADING_CONFIG;
+    MIDI_CHANNEL = doc["MIDI_CHANNEL"];
+    if(MIDI_CHANNEL < 1 || MIDI_CHANNEL > 16 ) MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;
+
     for (int i = 0; i < NUM_SENSORES; i++)
     {
       CONTROL[i] = doc["CONTROL"][i];
@@ -174,6 +213,7 @@ bool GuardarConfiguracionEnSPIFF()
     doc["Threshold_OFF"][i] = Threshold_OFF[i];
     doc["MAX_VELOCITY"][i] = MAX_VELOCITY[i];
   }
+  doc["MIDI_CHANNEL"] = MIDI_CHANNEL;
   
   // Serialize JSON to file
   serializeJson(doc,config);
@@ -207,7 +247,8 @@ void findNotes3NoVelocity(int sensor)
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
-    if (DEBUG) Serial.printf("%lu Note:  %s, OFF -> ON \n",millis(), NOTAS[CONTROL[sensor]]);
+    if (DEBUG && !PLOT_SIGNALS) Serial.printf("%lu Note:  %s, OFF -> ON, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
+    
     sendMIDI(NOTE_ON,CONTROL[sensor],127);
   }
   // 3. NOTE ON - NOTE OFF
@@ -215,7 +256,7 @@ void findNotes3NoVelocity(int sensor)
            (movingAvVelocityk[sensor] < Threshold_OFF[sensor]))
   {
     noteState[sensor] = NOTE_OFF;
-    if(DEBUG) Serial.printf("%lu  Note:  %s, ON -> OFF \n",millis(), NOTAS[CONTROL[sensor]]);
+    if (DEBUG && !PLOT_SIGNALS) Serial.printf("%lu  Note:  %s, ON -> OFF, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
     sendMIDI(NOTE_OFF,CONTROL[sensor],0);
   }
   // 4. NOTE ON - NEW NOTE
@@ -225,7 +266,7 @@ void findNotes3NoVelocity(int sensor)
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
-    if (DEBUG) Serial.printf("%lu  Note:  %s, ON -> NEW NOTE \n",millis(), NOTAS[CONTROL[sensor]]); 
+    if (DEBUG && !PLOT_SIGNALS) Serial.printf("%lu  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]); 
     
     sendMIDI(NOTE_ON,CONTROL[sensor],127);
   }
@@ -247,11 +288,7 @@ void findNotes3NoVelocity(int sensor)
 void plotSignalAndThresholds(float Velocity, int noteState, float Threshold_ON, float Threshold_OFF)
 {
     Serial << Velocity << COMMA << 160 * noteState << COMMA << Threshold_ON << COMMA << Threshold_OFF << CR;
-    //Serial.print(Velocity); Serial.print(","); Serial.print(160 * noteState); Serial.print(",");
-    //Serial.print(Threshold_ON);
-    //Serial.print(",");
-    //Serial.println(Threshold_OFF);
-
+    
 }
 
 
@@ -405,7 +442,7 @@ void sendMIDI(int cmd, int data1, int data2)
 void TestMIDI(int repeticiones)
 {
   
-  Serial.println(F("Testing MIDI Channel"));
+  Serial.println(F("Testing MIDI Channel by sending notes"));
   int i = 0;
   int j = 0;
   while(i < repeticiones)
@@ -418,12 +455,29 @@ void TestMIDI(int repeticiones)
     
     sendMIDI(NOTE_ON,CONTROL[j],0);
     j <  3? j++: j=0; 
-    Serial.printf("Note %d\n",i);
+    Serial.printf("Sending Note N° %d, MIDI code %d\n",i, CONTROL[j]);
     delay(100);
     i++;
   }
-  
+  Serial.println("Midi Test Finished");
 }
+
+void GPIOSetup()
+{
+  // Led PIN
+  pinMode(PIN_LED,OUTPUT);
+  
+  // Sustain Pedal
+  pinMode(PIN_SUSTAIN_PEDAL,INPUT_PULLUP);
+  // Setup PIN
+  pinMode(PIN_SETUP, INPUT_PULLUP);
+  // OTA PIN
+  pinMode(PIN_OTA, INPUT_PULLUP);
+  // Speed measurement pin
+  pinMode(PIN_SPEED,OUTPUT);
+
+}
+
 
 /*
 void sendADCtoSerial(unsigned long interval, uint32_t delayTime)
