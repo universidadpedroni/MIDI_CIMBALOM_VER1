@@ -11,7 +11,7 @@
 #define NOTE F("Note: ")
 #define THRES_ON F("Threshold ON: ")
 #define THRES_OFF F("Threshold OFF: ")
-#define VEL_MAX F("Max Velocity:")
+#define VEL_MAX F("Max Velocity: ")
 
 #define SPIFFS_ERROR F("SPIFFS error\n")
 #define FILE_ERROR F("Error opening config file. \n") 

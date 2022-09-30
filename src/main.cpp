@@ -49,23 +49,7 @@ void setup()
   // ADC Setup
   analogReadResolution(16);
 
-  // SETUP y OTA quedaron con lógica negativa.
-  if (!digitalRead(PIN_SETUP))
-  {
-    
-    while(1)
-    {
-      Serial.printf("%d, %d, %d, %d, %d, %d \n",
-                    (uint16_t)Threshold_DEFAULT,
-                    analogRead(CANALES_ADC[0]),
-                    analogRead(CANALES_ADC[1]),
-                    analogRead(CANALES_ADC[2]),
-                    analogRead(CANALES_ADC[3]),
-                    analogRead(CANALES_ADC[4]));
-
-             
-    }
-  }
+  
   
   Debug(FIRMWARE); Debug(COMPILATION_DATE); Debug(__DATE__); Debug(COMMA); Debugln(__TIME__);
   Debug(HARDWARE);
@@ -73,7 +57,7 @@ void setup()
   
   
 
-  if (TEST_MIDI) TestMIDI(4);
+  
 
   bool ConfigCargadaDesdeSPIFF = CargarConfiguracionDesdeSPIFF();
   if (ConfigCargadaDesdeSPIFF)
@@ -88,8 +72,8 @@ void setup()
   }
   if(DEBUG) showConfig();
   
-  GuardarConfiguracionEnSPIFF();
-  
+  //GuardarConfiguracionEnSPIFF();
+  if (TEST_MIDI) TestMIDI(4);
 
 //TODO: Enter Setup mode to adjust threshold and release time when button is pressed
   
@@ -101,10 +85,28 @@ void setup()
     // TODO OTA Function
   }
 
-   
+  // SETUP y OTA quedaron con lógica negativa.
+  if (!digitalRead(PIN_SETUP))
+  {
+    
+    while(1)
+    {
+      Serial.printf("%d, %d, %d, %d, %d, %d \n",
+                    (uint16_t)Threshold_ON,
+                    analogRead(CANALES_ADC[0]),
+                    analogRead(CANALES_ADC[1]),
+                    analogRead(CANALES_ADC[2]),
+                    analogRead(CANALES_ADC[3]),
+                    analogRead(CANALES_ADC[4]));
+      delay(1);
+       
+    }
+  }
+
   //digitalWrite(PIN_LED,LOW);
   ledBlink.init();
   Debug(SETUP_FINISHED);
+  
 }
 
 void loop()
@@ -112,7 +114,9 @@ void loop()
   ledBlink.update(LED_INTERVAL);
   sustainPedalUpdate();
   findNotes3NoVelocity(0);
+  findNotes3NoVelocity(1);
   findNotes3NoVelocity(2);
+  findNotes3NoVelocity(3);
   findNotes3NoVelocity(4);
 
   /*
@@ -132,10 +136,12 @@ void showConfig()
   Serial.printf("Midi Channel Tx: %d \n", MIDI_CHANNEL);
   for (int i = 0; i < NUM_SENSORES; i ++)
   {
-    Serial << SENSOR << i << TAB << NOTE << CONTROL[i] << TAB << NOTAS[CONTROL[i]] << TAB;
-    Serial << THRES_ON << Threshold_ON[i] << TAB << THRES_OFF << Threshold_OFF[i] << TAB;
-    Serial << VEL_MAX << MAX_VELOCITY[i] << CR;
-  }
+    Serial << SENSOR << i << TAB << NOTE << CONTROL[i] << TAB << NOTAS[CONTROL[i]] << CR;
+  }  
+  Serial << THRES_ON << Threshold_ON << TAB << THRES_OFF << Threshold_OFF << TAB;
+  Serial << F("Detection Interval: ") << TAB << Detection_Time << F("ms") << CR;
+  Serial << VEL_MAX << Max_Velocity << CR;
+  
 
 }
 
@@ -169,15 +175,21 @@ bool CargarConfiguracionDesdeSPIFF()
   else
   {
     if(DEBUG) Serial << LOADING_CONFIG;
-    MIDI_CHANNEL = doc["MIDI_CHANNEL"];
+    MIDI_CHANNEL = (int)doc["MIDI_CHANNEL"];
+    Threshold_ON = (float)doc["THRESHOLD_ON"];
+    Threshold_OFF = (float)doc["THRESHOLD_OFF"];
+    Max_Velocity = (float)doc["MAX_VELOCITY"];
+    Detection_Time = (unsigned long) doc["DETECTION_TIME"];
+    
     if(MIDI_CHANNEL < 1 || MIDI_CHANNEL > 16 ) MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;
+    if(Threshold_ON < 0 || Threshold_ON > 20000) Threshold_ON = THRESHOLD_ON_DEFAULT;
+    if(Threshold_OFF < 0 || Threshold_OFF > Threshold_ON) Threshold_OFF = 0.5 * Threshold_ON;
+    if(Detection_Time < 0) Detection_Time = DETECTION_TIME_DEFAULT;
 
+    
     for (int i = 0; i < NUM_SENSORES; i++)
     {
-      CONTROL[i] = doc["CONTROL"][i];
-      Threshold_ON[i] = doc["Threshold_ON"][i];
-      Threshold_OFF[i] = doc["Threshold_OFF"][i];
-      MAX_VELOCITY[i] = doc["MAX_VELOCITY"][i];
+      CONTROL[i] = (int)doc["CONTROL"][i];
     }
     
     
@@ -209,11 +221,12 @@ bool GuardarConfiguracionEnSPIFF()
   for (int i = 0; i < NUM_SENSORES; i++)
   {
     doc["CONTROL"][i] = CONTROL[i];
-    doc["Threshold_ON"][i] = Threshold_ON[i];
-    doc["Threshold_OFF"][i] = Threshold_OFF[i];
-    doc["MAX_VELOCITY"][i] = MAX_VELOCITY[i];
   }
   doc["MIDI_CHANNEL"] = MIDI_CHANNEL;
+  doc["THRESHOLD_ON"] = Threshold_ON;
+  doc["THRESHOLD_OFF"] = Threshold_OFF;
+  doc["MAX_VELOCITY"] = Max_Velocity;
+  doc["DETECTION_TIME"] = Detection_Time;
   
   // Serialize JSON to file
   serializeJson(doc,config);
@@ -237,13 +250,13 @@ void findNotes3NoVelocity(int sensor)
   // *** State Machine ***
   // 1. NOTE OFF -> NOTE OFF
   if((noteState[sensor] == NOTE_OFF) && 
-     (movingAvVelocityk[sensor] < Threshold_ON[sensor]))
+     (movingAvVelocityk[sensor] < Threshold_ON))
      {
         // Nothing to do here
      }
   // 2. NOTE OFF - NOTE ON   
   else if ((noteState[sensor] == NOTE_OFF) && 
-           (movingAvVelocityk[sensor] > Threshold_ON[sensor]))
+           (movingAvVelocityk[sensor] > Threshold_ON))
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
@@ -253,7 +266,7 @@ void findNotes3NoVelocity(int sensor)
   }
   // 3. NOTE ON - NOTE OFF
   else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] < Threshold_OFF[sensor]))
+           (movingAvVelocityk[sensor] < Threshold_OFF))
   {
     noteState[sensor] = NOTE_OFF;
     if (DEBUG && !PLOT_SIGNALS) Serial.printf("%lu  Note:  %s, ON -> OFF, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
@@ -261,8 +274,8 @@ void findNotes3NoVelocity(int sensor)
   }
   // 4. NOTE ON - NEW NOTE
   else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] > Threshold_ON[sensor]) &&
-           (currentTime - detectionTime[sensor] >= DETECTION_TIME))
+           (movingAvVelocityk[sensor] > Threshold_ON) &&
+           (currentTime - detectionTime[sensor] >= Detection_Time))
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
@@ -278,7 +291,7 @@ void findNotes3NoVelocity(int sensor)
   // Plot Sensor 2 and 3.
   if (PLOT_SIGNALS)
   {
-    plotSignalAndThresholds(movingAvVelocityk[plotSensor],noteState[plotSensor],Threshold_ON[plotSensor],Threshold_OFF[plotSensor]);
+    plotSignalAndThresholds(movingAvVelocityk[plotSensor],noteState[plotSensor],Threshold_ON,Threshold_OFF);
   }
   
   
@@ -305,13 +318,13 @@ void findNotes3(int sensor)
   // *** State Machine ***
   // 1. NOTE OFF -> NOTE OFF
   if((noteState[sensor] == NOTE_OFF) && 
-     (movingAvVelocityk[sensor] < Threshold_ON[sensor]))
+     (movingAvVelocityk[sensor] < Threshold_ON))
      {
 
      }
   // 2. NOTE OFF - NOTE ON   
   else if ((noteState[sensor] == NOTE_OFF) && 
-           (movingAvVelocityk[sensor] > Threshold_ON[sensor]))
+           (movingAvVelocityk[sensor] > Threshold_ON))
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
@@ -321,7 +334,7 @@ void findNotes3(int sensor)
   }
   // 3. NOTE ON - NOTE OFF
   else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] < Threshold_OFF[sensor]))
+           (movingAvVelocityk[sensor] < Threshold_OFF))
   {
     noteState[sensor] = NOTE_OFF;
     Serial.printf("%lu  Nota:  %s, ON -> OFF \n",millis(), NOTAS[CONTROL[sensor]]);
@@ -329,8 +342,8 @@ void findNotes3(int sensor)
   }
   // 4. NOTE ON - NEW NOTE
   else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] > Threshold_ON[sensor]) &&
-           (currentTime - detectionTime[sensor] >= DETECTION_TIME))
+           (movingAvVelocityk[sensor] > Threshold_ON) &&
+           (currentTime - detectionTime[sensor] >= Detection_Time))
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
@@ -353,7 +366,7 @@ void findNotes3(int sensor)
     // Peak Found!
     else
     {
-      maxVelocity[sensor] = constrain(127 * maxVelocity[sensor] / MAX_VELOCITY[sensor], 0, 127);
+      maxVelocity[sensor] = constrain(127 * maxVelocity[sensor] / Max_Velocity, 0, 127);
       //Serial.printf("%d Nota: %s, Vel: %.2f (p) \n",millis(), NOTAS[sensor],maxVelocity[sensor]);
       sendMIDI(NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
       notaEnviada[sensor] = true;
@@ -365,7 +378,7 @@ void findNotes3(int sensor)
            (currentTime - detectionTime[sensor]) > MAX_LATENCY && 
           (notaEnviada[sensor] == false))
   {
-    maxVelocity[sensor] = constrain(127 * maxVelocity[sensor] / MAX_VELOCITY[sensor], 0, 127);
+    maxVelocity[sensor] = constrain(127 * maxVelocity[sensor] / Max_Velocity, 0, 127);
     //Serial.printf("%d Nota: %s, Vel: %.2f (np) \n",millis(), NOTAS[sensor],maxVelocity[sensor]);
     sendMIDI(NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
     notaEnviada[sensor] = true;
@@ -377,7 +390,7 @@ void findNotes3(int sensor)
 
   if (PLOT_SIGNALS)
   {
-    plotSignalAndThresholds(movingAvVelocityk[plotSensor],noteState[plotSensor],Threshold_ON[plotSensor],Threshold_OFF[plotSensor]);
+    plotSignalAndThresholds(movingAvVelocityk[plotSensor],noteState[plotSensor],Threshold_ON,Threshold_OFF);
   }
   
   
@@ -447,15 +460,11 @@ void TestMIDI(int repeticiones)
   int j = 0;
   while(i < repeticiones)
   {
-    //sendMIDI(CONTROL_CHANGE,SUSTAIN,127);
-    
-    //sendMIDI(CONTROL_CHANGE,SUSTAIN,0);
-    
     sendMIDI(NOTE_ON,CONTROL[j],127);
     
     sendMIDI(NOTE_ON,CONTROL[j],0);
     j <  3? j++: j=0; 
-    Serial.printf("Sending Note N° %d, MIDI code %d\n",i, CONTROL[j]);
+    Serial.printf("Sending Note N° %d, MIDI code %d, Note %s\n",i, CONTROL[j],NOTAS[CONTROL[j]]);
     delay(100);
     i++;
   }

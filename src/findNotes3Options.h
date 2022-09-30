@@ -3,7 +3,7 @@
 
 // GENERALES
 //https://anotherproducer.com/online-tools-for-musicians/midi-cc-list/
-const int MIDI_CHANNEL_DEFAULT = 1; // Default MIDI CHANNEL
+const int MIDI_CHANNEL_DEFAULT = 5; // Default MIDI CHANNEL
 int MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;           
 const int NOTE_ON = 0x90;
 const int NOTE_OFF = 0x80;
@@ -44,7 +44,7 @@ bool notaEnviada[NUM_SENSORES] = {false, false, false, false,
 float amplik[NUM_SENSORES][3] = {0}; // Sensor reading
 float movingAvVelocityk[NUM_SENSORES] = {0};  // Sensor filtering.
 unsigned long detectionTime[NUM_SENSORES] = {0};
-const unsigned long DETECTION_TIME = 300;
+
 float maxVelocity[NUM_SENSORES] = {0};
 unsigned long MAX_LATENCY = 150; // Must be lower than DETECTION_TIME
 
@@ -54,7 +54,17 @@ unsigned long MAX_LATENCY = 150; // Must be lower than DETECTION_TIME
 int CONTROL[] = { 36, 38, 40, 43,
                         45, 47, 48, 50,
                         52, 55}; 
-const float Threshold_DEFAULT = 6000;
+const float THRESHOLD_ON_DEFAULT = 6000;
+const float MAX_VELOCITY_DEFAULT = 17000;
+const unsigned long DETECTION_TIME_DEFAULT = 300;
+
+
+float Threshold_ON = THRESHOLD_ON_DEFAULT;
+float Threshold_OFF =0.5 *  THRESHOLD_ON_DEFAULT;
+float Max_Velocity = MAX_VELOCITY_DEFAULT;
+unsigned long Detection_Time = DETECTION_TIME_DEFAULT;
+
+/*
 float Threshold_ON[NUM_SENSORES] = {4000, 4000, 4000, 4000,
                                     4000, 4000, 4000, 5000,
                                     12000, 12000};
@@ -66,3 +76,4 @@ float Threshold_OFF[NUM_SENSORES] = {2000, 2000, 2000, 2000,
 float  MAX_VELOCITY[NUM_SENSORES] = {17000, 17000, 17000, 17000,
                                      17000, 17000, 17000, 17000,
                                      17000, 17000 }; // Maximum measured velocity (17.000), usada solo en finNotes3()
+*/                                     
