@@ -9,6 +9,8 @@ const long MIDI_BAUDRATE = 31250;    // Baudrate for MIDI port
 
 // ledBlink constants
 const long LED_INTERVAL = 500;
+const long LED_INTERVAL_OTA = 250;
+const long LED_INTERVAL_SETUP = 100;
 // TODO Verificar la operación de este pin cuando se agregue la comunicación I2C
 const int PIN_SPEED = GPIO_NUM_21;            // pin para medir la velocidad de las rutinas.
 const int PIN_LED = GPIO_NUM_23;

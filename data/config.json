@@ -5,6 +5,7 @@
     "THRESHOLD_ON": 8000.0,
     "THRESHOLD_OFF": 3000.0,
     "DETECTION_TIME" : 200,
-    "MAX_VELOCITY": 17000.0                 
+    "MAX_VELOCITY": 17000.0,
+    "TEST_MIDI" : 1                 
 }
 

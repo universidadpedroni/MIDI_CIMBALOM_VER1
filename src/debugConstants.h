@@ -5,7 +5,7 @@
 #define DEBUG true
 const bool  PLOT_SIGNALS =  false;
  int plotSensor = 4;
-const bool TEST_MIDI = true;
+bool TEST_MIDI = false;      // Se pisa en config.json
 // **************************** //
 
 

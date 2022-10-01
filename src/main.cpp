@@ -9,6 +9,12 @@
 #include <ArduinoJson.h>
 #include "debugConstants.h"
 
+// OTA con Access Point
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncElegantOTA.h>
+
+
 // https://forum.arduino.cc/t/reading-piezo-for-midi-note-velocity/69277
 // https://iq.opengenus.org/bitwise-division/
 // https://ccrma.stanford.edu/~craig/articles/linuxmidi/misc/essenmidi.html
@@ -29,8 +35,12 @@ void plotSignalAndThresholds(float Velocity, int noteState, float Threshold_ON, 
 bool CargarConfiguracionDesdeSPIFF();
 bool GuardarConfiguracionEnSPIFF();
 void showConfig();
+void OverTheAirUpdate();
+void plotSignalsAndSetup();
+void ComandosDisponibles();
 
-
+const char* host = "esp32";
+const char* ssid = "MyEspUpdater";
 
 void setup()
 {
@@ -38,7 +48,7 @@ void setup()
   delay(2000);
   // GPIO Setup
   GPIOSetup();
-  digitalWrite(PIN_LED,HIGH);
+  ledBlink.init();
   
   // Serial ports setup
   Serial.begin(BAUDRATE);
@@ -54,8 +64,13 @@ void setup()
   Debug(FIRMWARE); Debug(COMPILATION_DATE); Debug(__DATE__); Debug(COMMA); Debugln(__TIME__);
   Debug(HARDWARE);
   Debugf(CORE_USED, xPortGetCoreID());
+  ComandosDisponibles();
   
-  
+  if (!digitalRead(PIN_OTA))
+  {
+    Debug(STARTING_OTA_UPDATE);
+    OverTheAirUpdate();
+  }
 
   
 
@@ -70,41 +85,30 @@ void setup()
     // TODO : Cargar config por defecto
     
   }
+
+  //TODO: Enter Setup mode to adjust threshold and release time when button is pressed
+  
+    // TODO Setup Function
+  
+  
+
+  // SETUP y OTA quedaron con lógica negativa.
+  if(!digitalRead(PIN_SETUP))
+  {
+    
+  }
+  plotSignalsAndSetup();
+  
+
+
   if(DEBUG) showConfig();
   
   //GuardarConfiguracionEnSPIFF();
   if (TEST_MIDI) TestMIDI(4);
 
-//TODO: Enter Setup mode to adjust threshold and release time when button is pressed
-  
-    // TODO Setup Function
-  
-  if (!digitalRead(PIN_OTA))
-  {
-    Debug(STARTING_OTA_UPDATE);
-    // TODO OTA Function
-  }
-
-  // SETUP y OTA quedaron con lógica negativa.
-  if (!digitalRead(PIN_SETUP))
-  {
-    
-    while(1)
-    {
-      Serial.printf("%d, %d, %d, %d, %d, %d \n",
-                    (uint16_t)Threshold_ON,
-                    analogRead(CANALES_ADC[0]),
-                    analogRead(CANALES_ADC[1]),
-                    analogRead(CANALES_ADC[2]),
-                    analogRead(CANALES_ADC[3]),
-                    analogRead(CANALES_ADC[4]));
-      delay(1);
-       
-    }
-  }
 
   //digitalWrite(PIN_LED,LOW);
-  ledBlink.init();
+  
   Debug(SETUP_FINISHED);
   
 }
@@ -129,6 +133,122 @@ void loop()
      
 }
 
+void plotSignalsAndSetup(){
+  const int MIN_VALUE = 500;
+  int midiTest = 0;
+  unsigned long initialMillis = 0;
+  uint16_t detection = 0;      // Variable usada para mostrar el detection time en el plot
+
+  while (!digitalRead(PIN_SETUP))
+  {
+    
+    
+    
+    // Chequear si hay algo en el serial port.
+    if (Serial.available() > 0)
+    {
+      char comando = toupper(Serial.read());
+      switch (comando)
+      {
+        case 'C':   // Midi Channel
+          MIDI_CHANNEL = Serial.parseInt();
+          MIDI_CHANNEL = constrain(MIDI_CHANNEL,1,16);
+          break;
+        case 'T':   // ThresHold ON
+          Threshold_ON = Serial.parseFloat();
+          constrain(Threshold_ON, 0, 60000);
+          break;
+        case 'F':   // ThresHold OFF
+          Threshold_OFF = Serial.parseFloat();
+          Threshold_OFF = constrain(Threshold_OFF, 0.0, 0.8 * Threshold_ON);
+          break;
+        case 'D':   // Detection time
+          Detection_Time = (unsigned long) Serial.parseInt();
+          Detection_Time = constrain(Detection_Time,0,1000);
+          break;
+        case 'M':   // Test midi
+          midiTest = Serial.parseInt();
+          midiTest = constrain(midiTest,0,1);
+          midiTest == 1? TEST_MIDI = true : TEST_MIDI = false;
+          break;
+        default:
+          break;
+      }
+      GuardarConfiguracionEnSPIFF();
+
+    }
+    // Chequear si se tocó una cuerda
+    if((analogRead(CANALES_ADC[0]) > MIN_VALUE) || (analogRead(CANALES_ADC[1]) > MIN_VALUE) ||
+        (analogRead(CANALES_ADC[2]) > MIN_VALUE) || (analogRead(CANALES_ADC[3]) > MIN_VALUE) ||
+        (analogRead(CANALES_ADC[4]) > MIN_VALUE))
+        {
+          initialMillis = millis();
+          Serial.println("Th_ON Th_OFF S0 S1 S2 S3 S4, Det");
+          for(int i = 0; i < 300; i++)
+          {
+            millis() - initialMillis < Detection_Time ? detection = (uint16_t) (Threshold_ON / 2) : detection = 0;
+            Serial.printf("%d, %d, %d, %d, %d, %d, %d, %d \n",
+                    (uint16_t)Threshold_ON,
+                    (uint16_t) Threshold_OFF,
+                    analogRead(CANALES_ADC[0]),
+                    analogRead(CANALES_ADC[1]),
+                    analogRead(CANALES_ADC[2]),
+                    analogRead(CANALES_ADC[3]),
+                    analogRead(CANALES_ADC[4]),
+                    detection);
+      
+       
+          }
+          delay(2000);  // una manera muy mala para que no entre dos veces en el bucle porque detecta la cola de la señal mayor a 500
+
+        }
+
+  ledBlink.update(LED_INTERVAL_SETUP);  
+  }
+
+
+}
+
+void ComandosDisponibles()
+{
+  Serial << F("List of available commands") << CR;
+  Serial << F("C,n - Midi Channel [1-16]") << CR; 
+  Serial << F("T,n - Threshold oN [0, 60000]") << CR;
+  Serial << F("F,n - Threshold OFF [0, 0.8 * Threshold on]") << CR;
+  Serial << F("D,n - Detection Time [0, 1000]") << CR;
+  Serial << F("M,n - Test Midi [0,1]") << CR;
+
+}
+
+void OverTheAirUpdate()
+{
+  AsyncWebServer server(80);
+  
+  WiFi.mode(WIFI_AP);
+  //WiFi.softAP("MidiESP","12345678");
+  WiFi.softAP("MidiESP");
+  IPAddress myIP = WiFi.softAPIP();
+  Serial << F("To upload, go to: ") << WiFi.softAPIP() << F("/update\n");
+  
+  server.on("/hello", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", "<p>Hello world!</p>");
+  });
+  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+  server.begin();
+
+  
+
+  while(1)
+  {
+    
+    ledBlink.update(LED_INTERVAL_OTA);
+    delay(5);
+
+  }
+
+  
+}
+
 
 void showConfig()
 {
@@ -140,6 +260,8 @@ void showConfig()
   }  
   Serial << THRES_ON << Threshold_ON << TAB << THRES_OFF << Threshold_OFF << TAB;
   Serial << F("Detection Interval: ") << TAB << Detection_Time << F("ms") << CR;
+  Serial << F("Test MIDI: ");
+  TEST_MIDI == true? Serial.println("Yes") : Serial.println("No");
   Serial << VEL_MAX << Max_Velocity << CR;
   
 
@@ -180,6 +302,7 @@ bool CargarConfiguracionDesdeSPIFF()
     Threshold_OFF = (float)doc["THRESHOLD_OFF"];
     Max_Velocity = (float)doc["MAX_VELOCITY"];
     Detection_Time = (unsigned long) doc["DETECTION_TIME"];
+    TEST_MIDI = (bool) doc["TEST_MIDI"];
     
     if(MIDI_CHANNEL < 1 || MIDI_CHANNEL > 16 ) MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;
     if(Threshold_ON < 0 || Threshold_ON > 20000) Threshold_ON = THRESHOLD_ON_DEFAULT;
@@ -227,6 +350,8 @@ bool GuardarConfiguracionEnSPIFF()
   doc["THRESHOLD_OFF"] = Threshold_OFF;
   doc["MAX_VELOCITY"] = Max_Velocity;
   doc["DETECTION_TIME"] = Detection_Time;
+  TEST_MIDI == true? doc["TEST_MIDI"] = 1 : doc["TEST_MIDI"] = 0;
+  
   
   // Serialize JSON to file
   serializeJson(doc,config);
