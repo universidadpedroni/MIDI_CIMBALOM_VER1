@@ -48,32 +48,25 @@ unsigned long detectionTime[NUM_SENSORES] = {0};
 float maxVelocity[NUM_SENSORES] = {0};
 unsigned long MAX_LATENCY = 150; // Must be lower than DETECTION_TIME
 
+int contadorMax[NUM_SENSORES] = {0};
+
 // Constants with DEFAULT VALUES. All of this parameters are updated using a json file.
 
 // notes to play, corresponding to all sensors: 
 int CONTROL[] = { 36, 38, 40, 43,
                         45, 47, 48, 50,
                         52, 55}; 
-const float THRESHOLD_ON_DEFAULT = 6000;
+const float THRESHOLD_ON_DEFAULT = 100;
 const float MAX_VELOCITY_DEFAULT = 17000;
+const float GAIN_VELOCITY_DEFAULT = 1;
+const int DURATION_VELOCITY_DEFAULT = 5;
 const unsigned long DETECTION_TIME_DEFAULT = 300;
 
 
 float Threshold_ON = THRESHOLD_ON_DEFAULT;
 float Threshold_OFF =0.5 *  THRESHOLD_ON_DEFAULT;
 float Max_Velocity = MAX_VELOCITY_DEFAULT;
+float Gain_Velocity = GAIN_VELOCITY_DEFAULT;
+int Duration_Velocity = DURATION_VELOCITY_DEFAULT;
 unsigned long Detection_Time = DETECTION_TIME_DEFAULT;
 
-/*
-float Threshold_ON[NUM_SENSORES] = {4000, 4000, 4000, 4000,
-                                    4000, 4000, 4000, 5000,
-                                    12000, 12000};
-
-float Threshold_OFF[NUM_SENSORES] = {2000, 2000, 2000, 2000,
-                                     2000, 3000, 3000, 4000,
-                                     8000, 8000};
-
-float  MAX_VELOCITY[NUM_SENSORES] = {17000, 17000, 17000, 17000,
-                                     17000, 17000, 17000, 17000,
-                                     17000, 17000 }; // Maximum measured velocity (17.000), usada solo en finNotes3()
-*/                                     

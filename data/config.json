@@ -2,10 +2,12 @@
     "MIDI_CHANNEL": 1,
     "CONTROL": [ 57, 59, 42, 40, 50,
                  51, 52, 53, 54, 55 ],
-    "THRESHOLD_ON": 8000.0,
-    "THRESHOLD_OFF": 3000.0,
+    "THRESHOLD_ON": 100.0,
+    "THRESHOLD_OFF": 25.0,
     "DETECTION_TIME" : 200,
-    "MAX_VELOCITY": 17000.0,
+    "MAX_VELOCITY": 10000.0,
+    "GAIN_VELOCITY": 4,
+    "DURATION_VELOCITY": 10,
     "TEST_MIDI" : 1                 
 }
 
