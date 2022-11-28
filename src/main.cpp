@@ -308,16 +308,17 @@ void loop()
 {
   ledBlink.update(LED_INTERVAL);
   sustainPedalUpdate();
-  findNotes3(0);
+  //findNotes3(0);
   serialCommands();
-  /*
+  
   //for (int i = 0; i < NUM_SENSORES; i++)
   for (int i = 0; i < 5; i++)
   {
-    findNotes3NoVelocity(i);
+    //findNotes3NoVelocity(i);
+    findNotes3(i);
 
   }
-  */
+  
 }
 
 
