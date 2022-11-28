@@ -93,6 +93,14 @@ void SerialShowSignals(HardwareSerial &MySerial,
 
 }
 
+void ShowMidiMessage(HardwareSerial &MySerial, int cmd, int data1, int data2)
+{
+  MySerial.printf("MIDI: CC: %d, Control: %d, Vel: %d\n",
+                  cmd, data1, data2);
+
+}
+
+
 void sendMIDI(HardwareSerial &SerialMidi, int cmd, int data1, int data2)
 {
   // plays a MIDI note or Control change..  Doesn't check to see that

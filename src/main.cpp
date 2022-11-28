@@ -228,7 +228,9 @@ bool CargarConfiguracionDesdeSPIFF()
     }
   
   }
+
   config.close();
+
   return true;
 
 }
@@ -252,6 +254,7 @@ void setup()
   // ADC Setup
   analogReadResolution(16);
   
+
   SerialPresentation(Serial);
   SerialComandosDisponibles(Serial);
   SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
@@ -287,6 +290,17 @@ void setup()
   
   if (TEST_MIDI) TestMIDI(Serial, SerialMidi, 4);
   SerialSetupFinished(Serial);
+  /*
+  float medicion = 0.0;
+  int ajuste = 0.0;
+  while(1){
+    medicion = (float)analogRead(GPIO_NUM_36) - 6000;
+    ajuste = (int) (Gain_Velocity * medicion / Max_Velocity); 
+    Serial.printf("%.2f,  %d\n", medicion, ajuste);
+    delay(500);
+
+  }
+  */
   
 }
 
@@ -296,8 +310,6 @@ void loop()
   sustainPedalUpdate();
   findNotes3(0);
   serialCommands();
-  //plotSignalsAndSetup();
-  
   /*
   //for (int i = 0; i < NUM_SENSORES; i++)
   for (int i = 0; i < 5; i++)
@@ -306,104 +318,7 @@ void loop()
 
   }
   */
-     
 }
-
-
-
-/*
-void plotSignalsAndSetup(){
-  // TODO: volver al valor inicial 
-  const int MIN_VALUE = 2000; //500; valor original: 500
-  int midiTest = 0;
-  unsigned long initialMillis = 0;
-  uint16_t detection = 0;      // Variable usada para mostrar el detection time en el plot
-
-  // TODO Cambiar esta condicion while (!digitalRead(PIN_SETUP))
-  while (!digitalRead(PIN_SETUP))
-  {
-    
-    
-    
-    // Chequear si hay algo en el serial port.
-    if (Serial.available() > 0)
-    {
-      char comando = toupper(Serial.read());
-      switch (comando)
-      {
-        case 'C':   // Midi Channel
-          MIDI_CHANNEL = Serial.parseInt();
-          MIDI_CHANNEL = constrain(MIDI_CHANNEL,1,16);
-          break;
-        case 'D':   // Detection time
-          Detection_Time = (unsigned long) Serial.parseInt();
-          Detection_Time = constrain(Detection_Time,0,1000);
-          break;
-        case 'F':   // ThresHold OFF
-          Threshold_OFF = Serial.parseFloat();
-          Threshold_OFF = constrain(Threshold_OFF, 0.0, 0.8 * Threshold_ON);
-          break;
-        case 'G': // Velocity Gain
-          Gain_Velocity = Serial.parseFloat();
-          Gain_Velocity = constrain(Gain_Velocity, 1, 10);
-        case 'M':   // Test midi
-          midiTest = Serial.parseInt();
-          midiTest = constrain(midiTest,0,1);
-          midiTest == 1? TEST_MIDI = true : TEST_MIDI = false;
-          break;
-        case 'T':   // ThresHold ON
-          Threshold_ON = Serial.parseFloat();
-          constrain(Threshold_ON, 0, 60000);
-          break;
-        
-        
-        
-        default:
-          break;
-      }
-      GuardarConfiguracionEnSPIFF();
-
-    }
-    
-    if((analogRead(CANALES_ADC[0]) > MIN_VALUE) || (analogRead(CANALES_ADC[1]) > MIN_VALUE) ||
-        (analogRead(CANALES_ADC[2]) > MIN_VALUE) || (analogRead(CANALES_ADC[3]) > MIN_VALUE) ||
-        (analogRead(CANALES_ADC[4]) > MIN_VALUE))
-    
-        {
-          initialMillis = millis();
-          Serial.println("Th_ON Th_OFF S0 S1 S2 S3 S4, Det");
-          for(int i = 0; i < 300; i++)
-          {
-            millis() - initialMillis < Detection_Time ? detection = (uint16_t) (Threshold_ON / 2) : detection = 0;
-            Serial.printf("%d, %d, %d, %d, %d, %d, %d, %d \n",
-                    (uint16_t)Threshold_ON,
-                    (uint16_t) Threshold_OFF,
-                    analogRead(CANALES_ADC[0]),
-                    analogRead(CANALES_ADC[1]),
-                    analogRead(CANALES_ADC[2]),
-                    analogRead(CANALES_ADC[3]),
-                    analogRead(CANALES_ADC[4]),
-                    detection);
-      
-       
-          }
-          delay(2000);  // una manera muy mala para que no entre dos veces en el bucle porque detecta la cola de la señal mayor a 500
-
-        }
-      
-
-  ledBlink.update(LED_INTERVAL_SETUP);  
-  }
-
-
-}*/
-
-
-
-
-
-
-
 
 
 // FUNCIONANDO, SIN VELOCIDAD
@@ -470,9 +385,9 @@ void findNotes3(int sensor)
   unsigned long currentTime = millis();
   
   // Reading the amplitude of the signal and going through moving average filter
-  amplik[sensor][0] =  Gain_Velocity * 127.0 * (float)analogRead(CANALES_ADC[sensor]) / Max_Velocity;
+  amplik[sensor][0] =  Gain_Velocity * (float)analogRead(CANALES_ADC[sensor]) / Max_Velocity;
   movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
-  
+  //movingAvVelocityk[sensor] = amplik[sensor][0];
 
   // *** State Machine ***
   // 1. NOTE OFF -> NOTE OFF
@@ -509,13 +424,15 @@ void findNotes3(int sensor)
     detectionTime[sensor] = currentTime;
     if (contadorMax[sensor] >= Duration_Velocity && notaEnviada[sensor] == false)
     {
-      sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],constrain(maxVelocity[sensor],  0, 256));
+      //sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],constrain(maxVelocity[sensor],  0, 256));
+      sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
+      if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],(int)constrain(maxVelocity[sensor],  0.0, 256.0) );
       notaEnviada[sensor] = true;
-      if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[0], maxVelocity[0],100); 
+      if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],100); 
     }
     else
     {
-      if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[0], maxVelocity[0],0); 
+      if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0); 
     }
     
  
@@ -523,12 +440,14 @@ void findNotes3(int sensor)
   
   // 5. NOTE ON - NOTE OFF
   else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] < Threshold_OFF))
+           ((movingAvVelocityk[sensor] < Threshold_OFF) ||
+           (currentTime - detectionTime[sensor] >= Detection_Time)))
   {
     noteState[sensor] = NOTE_OFF;
     maxVelocity[sensor] = 0;
     sendMIDI(SerialMidi, NOTE_OFF,CONTROL[sensor],0);
-    if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[0], maxVelocity[0],0);  
+    if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],0);
+    if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
        
   }
   
