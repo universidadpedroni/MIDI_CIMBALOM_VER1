@@ -7,14 +7,11 @@
 #define COMMA F(",")
 
 
-void SerialPresentation(HardwareSerial &MySerial){
+void SerialPresentation(HardwareSerial &MySerial, int softwareVersion, int jsonVersion){
     MySerial.println();
-    MySerial.println(F("MIDI Cimbalon Ver 1.2"));
-    MySerial.print(F("Compitation Date: "));
-    MySerial.print(__DATE__);
-    MySerial.print(COMMA);
-    MySerial.println(__TIME__);
-    MySerial.println(F("Hardware: ESP32"));
+    MySerial.printf("Software Ver: %d\nJson Ver: %d\nHardware Ver: %d\n", softwareVersion, jsonVersion, hardWareVersion);
+    MySerial.printf("Compilation Date: %s, %s\n", __DATE__ , __TIME__);
+    
 
 }
 
@@ -25,7 +22,9 @@ void SerialComandosDisponibles(HardwareSerial &MySerial){
   MySerial.println(F("F,n - Threshold OFF [0, 0.8 * Threshold on]"));
   MySerial.println(F("G,n - Velocity Gain [1 10]"));
   MySerial.println(F("M,n - Test Midi [0,1]"));
+  MySerial.println(F("P - Plot Signals ON / OFF"));
   MySerial.println(F("T,n - Threshold ON [0, 200]"));
+  MySerial.println(F("S, n - enabled Sensors [1 - 5]" ));   // TODO: Ajustar a la cantidad de sensores disponibles.
 
 }
 
@@ -49,6 +48,12 @@ void SerialShowConfig(HardwareSerial &MySerial,
   TEST_MIDI == true? MySerial.println(F("Yes")) : MySerial.println(F("No"));
   
 
+}
+
+void SerialShowActiveSensors(HardwareSerial &MySerial, int activeSensors){
+  for(int i = 1; i <= activeSensors; i++){
+            Serial.printf("Sensor %d is active\n", i);
+          }
 }
 
 void SerialShowConfigSensores(HardwareSerial &MySerial, int NUM_SENSORES,
@@ -123,6 +128,7 @@ void TestMIDI(HardwareSerial &MySerial,HardwareSerial &SerialMidi, int repeticio
   int j = 0;
   while(i < repeticiones)
   {
+    
     sendMIDI(SerialMidi, NOTE_ON,CONTROL[j],127);
     
     sendMIDI(SerialMidi, NOTE_ON,CONTROL[j],0);

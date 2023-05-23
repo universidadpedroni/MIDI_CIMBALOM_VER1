@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <config.h>
-#include <blink.h>
 #include <findNotes3Options.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
@@ -8,10 +7,24 @@
 #include <auxFunc.h>
 
 // OTA con Access Point
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include <AsyncElegantOTA.h>
+#include <wifiFunctions.h>
+//#include <WiFi.h>
+//#include <ESPAsyncWebServer.h>
+//#include <AsyncElegantOTA.h>
+//#include "wifiConfig.h"
 
+// RTOS
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+// TODO: ESP32 as slave
+// Wire Master Reader
+// by Gutierrez PS <https://github.com/gutierrezps>
+// ESP32 I2C slave library: <https://github.com/gutierrezps/ESP32_I2C_Slave>
+// based on the example by Nicholas Zambetti <http://www.zambetti.com>
+
+// WIFI
+// https://www.upesy.com/blogs/tutorials/how-create-a-wifi-acces-point-with-esp32
 
 // https://forum.arduino.cc/t/reading-piezo-for-midi-note-velocity/69277
 // https://iq.opengenus.org/bitwise-division/
@@ -21,61 +34,52 @@
 // https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
 // https://randomnerdtutorials.com/decoding-and-encoding-json-with-arduino-or-esp8266/
 
-blink ledBlink(PIN_LED);
 
 
 void findNotes3(int sensor);
 void findNotes3NoVelocity(int sensor);
-void plotSignalAndThresholds(float Velocity, int noteState, float Threshold_ON, float Threshold_OFF);
-//void plotSignalsAndSetup();
+//void plotSignalAndThresholds(float Velocity, int noteState, float Threshold_ON, float Threshold_OFF);
+
+TaskHandle_t presentacionPorSerieTaskHandle;
 
 
-const char* host = "esp32";
-const char* ssid = "MyEspUpdater";
+void presentacionPorSerieTask(void *parameter){
+  SerialPresentation(Serial, softwareVersion, jsonVersion);
+  SerialShowActiveSensors(Serial, sensoresActivos);
+  SerialComandosDisponibles(Serial);
+  SerialShowConfig(Serial, MIDI_CHANNEL,
+                  Threshold_ON, Threshold_OFF,
+                  Detection_Time, Gain_Velocity,
+                  Duration_Velocity,
+                  TEST_MIDI);
+  //Serial.printf("Tarea ejecutándose en el núcleo %d\n", xPortGetCoreID());
+  SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
+  SerialSetupFinished(Serial);
+  vTaskDelete(NULL);
+}
 
-void OverTheAirUpdate()
-{
-  AsyncWebServer server(80);
-  
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("MidiESP");
-  IPAddress myIP = WiFi.softAPIP();
-  Serial.print(F("To upload, go to:"));
-  Serial.print(WiFi.softAPIP());
-  Serial.println(F("/update\n"));
-  //Serial << F("To upload, go to: ") << WiFi.softAPIP() << F("/update\n");
-  
-  server.on("/hello", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(200, "text/html", "<p>Hello world!</p>");
-  });
-  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
-  server.begin();
-
-  
-
-  while(1)
-  {
-    
-    ledBlink.update(LED_INTERVAL_OTA);
-    delay(5);
-
-  }
+void crearTareaDePresentacionPorSerie(){
+  xTaskCreatePinnedToCore(presentacionPorSerieTask,             // Función de la tarea
+                          "Presentacion Por Serie",             // Nombre de la tarea (opcional)
+                            10000,                              // Tamaño de la pila de la tarea (ajustar según necesidad)
+                            NULL,                               // Parámetro de la tarea (puede ser NULL)
+                            1,                                  // Prioridad de la tarea (mayor valor = mayor prioridad)
+                            &presentacionPorSerieTaskHandle,    // Manejador de la tarea (para detenerla o suspenderla si es necesario)
+                            1);                                 // Núcleo en el que se ejecutará la tarea (0 para el primer núcleo, 1 para el segundo)
 
 }
 
 void GPIOSetup()
 {
-  // Led PIN
-  pinMode(PIN_LED,OUTPUT);
-  
   // Sustain Pedal
   pinMode(PIN_SUSTAIN_PEDAL,INPUT_PULLUP);
   // Setup PIN
   pinMode(PIN_SETUP, INPUT_PULLUP);
   // OTA PIN
   pinMode(PIN_OTA, INPUT_PULLUP);
-  // Speed measurement pin
-  pinMode(PIN_SPEED,OUTPUT);
+  // Pin para determinar qué función se usa para detectar las notas.
+  pinMode(PIN_NO_DETECTAR_VELOCIDAD, INPUT_PULLUP);
+
 
 }
 
@@ -109,6 +113,8 @@ bool GuardarConfiguracionEnSPIFF()
   doc["DETECTION_TIME"] = Detection_Time;
   doc["DURATION_VELOCITY"] = Duration_Velocity;
   TEST_MIDI == true? doc["TEST_MIDI"] = 1 : doc["TEST_MIDI"] = 0;
+  doc["JSON_VERSION"] = jsonVersion;
+
  
   // Serialize JSON to file
   serializeJson(doc,config);
@@ -123,6 +129,7 @@ void serialCommands()
     if (Serial.available() > 0)
     {
       char comando = toupper(Serial.read());
+      Serial.printf("Comando recibido: %c\n", comando);
       switch (comando)
       {
         case 'C':   // Midi Channel
@@ -140,14 +147,27 @@ void serialCommands()
         case 'G': // Velocity Gain
           Gain_Velocity = Serial.parseFloat();
           Gain_Velocity = constrain(Gain_Velocity, 1, 10);
+          break;
+        case 'H': // show help
+          SerialComandosDisponibles(Serial);
+          break;
         case 'M':   // Test midi
           midiTest = Serial.parseInt();
           midiTest = constrain(midiTest,0,1);
           midiTest == 1? TEST_MIDI = true : TEST_MIDI = false;
           break;
+        case 'P':   // Plot Signals
+          plotSignals = !plotSignals;
+          plotSignals? Serial.println("Plot Signals ON") : Serial.println("Plot Signals OFF");
+          break;
         case 'T':   // ThresHold ON
           Threshold_ON = Serial.parseFloat();
-          constrain(Threshold_ON, 0, 200);
+          Threshold_ON = constrain(Threshold_ON, 0, 200);
+          break;
+        case 'S': // Working sensors. Usada para determinar con cuantos sensores se trabajará
+          sensoresActivos = Serial.parseInt();
+          sensoresActivos = constrain(sensoresActivos, 1, NUM_SENSORES);
+          SerialShowActiveSensors(Serial, sensoresActivos);
           break;
         default:
           break;
@@ -205,6 +225,7 @@ bool CargarConfiguracionDesdeSPIFF()
   else
   {
     Serial.println(F("Loading config from json File"));
+    jsonVersion = (int)doc["JSON_VERSION"];
     MIDI_CHANNEL = (int)doc["MIDI_CHANNEL"];
     Threshold_ON = (float)doc["THRESHOLD_ON"];
     Threshold_OFF = (float)doc["THRESHOLD_OFF"];
@@ -215,8 +236,8 @@ bool CargarConfiguracionDesdeSPIFF()
     TEST_MIDI = (bool) doc["TEST_MIDI"];
     
     if(MIDI_CHANNEL < 1 || MIDI_CHANNEL > 16 ) MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;
-    if(Threshold_ON < 0 || Threshold_ON > 200) Threshold_ON = THRESHOLD_ON_DEFAULT;
-    if(Threshold_OFF < 0 || Threshold_OFF > Threshold_ON) Threshold_OFF = 0.5 * Threshold_ON;
+    if(Threshold_ON < 0.0 || Threshold_ON > 200.0) Threshold_ON = THRESHOLD_ON_DEFAULT;
+    if(Threshold_OFF < 0.0 || Threshold_OFF > Threshold_ON) Threshold_OFF = 0.5 * Threshold_ON;
     if(Detection_Time < 0) Detection_Time = DETECTION_TIME_DEFAULT;
     if(Gain_Velocity < 1) Gain_Velocity = GAIN_VELOCITY_DEFAULT;
     if(Duration_Velocity < 1 || Duration_Velocity > 100) Duration_Velocity = DURATION_VELOCITY_DEFAULT;
@@ -236,35 +257,26 @@ bool CargarConfiguracionDesdeSPIFF()
 }
 
 
-
 void setup()
 {
   // Initial delay
   delay(2000);
   // GPIO Setup
   GPIOSetup();
-  ledBlink.init();
-  
   // Serial ports setup
   Serial.begin(BAUDRATE);
   Serial.flush();
+  Serial.println(F("Starting Init..."));
   SerialMidi.begin(MIDI_BAUDRATE);
   SerialMidi.flush();
-  
   // ADC Setup
   analogReadResolution(16);
-  
-
-  SerialPresentation(Serial);
-  SerialComandosDisponibles(Serial);
-  SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
   // OTA
   if (!digitalRead(PIN_OTA))
   {
     Serial.println(F("Starting OTA Update"));
     OverTheAirUpdate();
   }
-
   // Load Config from SPIFF
   bool ConfigCargadaDesdeSPIFF = CargarConfiguracionDesdeSPIFF();
   if (ConfigCargadaDesdeSPIFF)
@@ -277,55 +289,35 @@ void setup()
     // TODO : Cargar config por defecto
     
   }
-
-  //TODO: Enter Setup mode to adjust threshold and release time when button is pressed
-  
-    // TODO Setup Function
-  SerialShowConfig(Serial, MIDI_CHANNEL,
-                  Threshold_ON, Threshold_OFF,
-                  Detection_Time, Gain_Velocity,
-                  Duration_Velocity,
-                  TEST_MIDI);
   
   
+  // La presentación por el puerto serie se realiza en el segundo núcleo.
+  crearTareaDePresentacionPorSerie();
   if (TEST_MIDI) TestMIDI(Serial, SerialMidi, 4);
-  SerialSetupFinished(Serial);
-  /*
-  float medicion = 0.0;
-  int ajuste = 0.0;
-  while(1){
-    medicion = (float)analogRead(GPIO_NUM_36) - 6000;
-    ajuste = (int) (Gain_Velocity * medicion / Max_Velocity); 
-    Serial.printf("%.2f,  %d\n", medicion, ajuste);
-    delay(500);
 
-  }
-  */
-  
 }
 
 void loop()
 {
-  ledBlink.update(LED_INTERVAL);
   sustainPedalUpdate();
-  //findNotes3(0);
   serialCommands();
   
   //for (int i = 0; i < NUM_SENSORES; i++)
-  for (int i = 0; i < 5; i++)
+  for (int i = 0; i < sensoresActivos; i++)
   {
-    //findNotes3NoVelocity(i);
-    findNotes3(i);
-
+    //if (i == 0) digitalWrite(PIN_SPEED,HIGH);
+    digitalRead(PIN_NO_DETECTAR_VELOCIDAD) == true? findNotes3NoVelocity(i):findNotes3(i);
+    //if (i == 0) digitalWrite(PIN_SPEED,LOW);
+    
   }
-  
+    
 }
 
 
 // FUNCIONANDO, SIN VELOCIDAD
 void findNotes3NoVelocity(int sensor)
 {
-  if (sensor == 0) digitalWrite(PIN_SPEED,HIGH);
+  
   unsigned long currentTime = millis();
   
   // Reading the amplitude of the signal and going through moving average filter
@@ -346,7 +338,7 @@ void findNotes3NoVelocity(int sensor)
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
-    if (PLOT_SIGNALS) Serial.printf("%lu Note:  %s, OFF -> ON, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
+    if (plotSignals) Serial.printf("%lu Note:  %s, OFF -> ON, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
     
     sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
   }
@@ -355,7 +347,7 @@ void findNotes3NoVelocity(int sensor)
            (movingAvVelocityk[sensor] < Threshold_OFF))
   {
     noteState[sensor] = NOTE_OFF;
-    if (PLOT_SIGNALS) Serial.printf("%lu  Note:  %s, ON -> OFF, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
+    if (plotSignals) Serial.printf("%lu  Note:  %s, ON -> OFF, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
     sendMIDI(SerialMidi,NOTE_OFF,CONTROL[sensor],0);
   }
   // 4. NOTE ON - NEW NOTE
@@ -365,7 +357,7 @@ void findNotes3NoVelocity(int sensor)
   {
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
-    if (PLOT_SIGNALS) Serial.printf("%lu  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]); 
+    if (plotSignals) Serial.printf("%lu  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",millis() / 1000, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]); 
     
     sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
   }
@@ -376,13 +368,13 @@ void findNotes3NoVelocity(int sensor)
 
    
   
-  if (sensor == 0) digitalWrite(PIN_SPEED,LOW);
+  
 }
 
 
 void findNotes3(int sensor)
 {
-  if (sensor == 0) digitalWrite(PIN_SPEED,HIGH);
+  
   unsigned long currentTime = millis();
   
   // Reading the amplitude of the signal and going through moving average filter
@@ -406,7 +398,7 @@ void findNotes3(int sensor)
     maxVelocity[sensor] = movingAvVelocityk[sensor];
     notaEnviada[sensor] = false;
     contadorMax[sensor] = 0;
-    if(PLOT_SIGNALS) SerialShowSignalsLabels(Serial);
+    if(plotSignals) SerialShowSignalsLabels(Serial);
     
   }
   // 3. NOTE ON - NOTE ON, No Max
@@ -429,11 +421,11 @@ void findNotes3(int sensor)
       sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
       if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],(int)constrain(maxVelocity[sensor],  0.0, 256.0) );
       notaEnviada[sensor] = true;
-      if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],100); 
+      if(plotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],100); 
     }
     else
     {
-      if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0); 
+      if(plotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0); 
     }
     
  
@@ -448,7 +440,7 @@ void findNotes3(int sensor)
     maxVelocity[sensor] = 0;
     sendMIDI(SerialMidi, NOTE_OFF,CONTROL[sensor],0);
     if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],0);
-    if(PLOT_SIGNALS) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
+    if(plotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
        
   }
   
@@ -457,7 +449,7 @@ void findNotes3(int sensor)
   amplik[sensor][1] = amplik[sensor][0];
   
   
-  if (sensor == 0) digitalWrite(PIN_SPEED,LOW);
+  
 
 }
 

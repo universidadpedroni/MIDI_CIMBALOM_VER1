@@ -1,12 +1,13 @@
 {
+    "JSON_VERSION" : 2,
     "MIDI_CHANNEL": 1,
     "CONTROL": [ 57, 59, 42, 40, 50,
                  51, 52, 53, 54, 55 ],
-    "THRESHOLD_ON": 100.0,
-    "THRESHOLD_OFF": 25.0,
+    "THRESHOLD_ON": 90,
+    "THRESHOLD_OFF": 25,
     "DETECTION_TIME" : 200,
-    "MAX_VELOCITY": 100.0,
-    "GAIN_VELOCITY": 1.0,
+    "MAX_VELOCITY": 100,
+    "GAIN_VELOCITY": 1,
     "DURATION_VELOCITY": 10,
     "TEST_MIDI" : 1                 
 }
