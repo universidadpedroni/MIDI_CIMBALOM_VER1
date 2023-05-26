@@ -5,6 +5,9 @@
 
 
 #define COMMA F(",")
+#define ESTADO_OFF_ON 0
+#define ESTADO_ON_OFF 1
+#define ESTADO_ON_NEW_NOTE 2
 
 int findOctave(int pinOctaveSel0, int pinOctaveSel1, int pinOctaveSel2){
   int octava = 0x00;
@@ -12,6 +15,38 @@ int findOctave(int pinOctaveSel0, int pinOctaveSel1, int pinOctaveSel2){
   bitWrite(octava, 1, !digitalRead(pinOctaveSel1));
   bitWrite(octava, 2, !digitalRead(pinOctaveSel2));
   return octava;
+}
+
+
+void SerialDebugSignals(unsigned long time, int sensor, float velocity, int estado){
+  
+  switch (estado)
+  {
+  case ESTADO_OFF_ON:
+    Serial.printf("%.3f  Note:  %s, OFF -> ON, Amplitud: %.2f \n",
+                (float)time / 1000.0, 
+                NOTAS[CONTROL[sensor]], 
+                velocity);
+    break;
+  case ESTADO_ON_OFF:
+    Serial.printf("%.3f  Note:  %s, ON -> OFF, Amplitud: %.2f \n",
+                (float)time / 1000.0, 
+                NOTAS[CONTROL[sensor]], 
+                velocity); 
+    break;
+  case ESTADO_ON_NEW_NOTE:
+    Serial.printf("%.3f  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",
+                (float)time / 1000.0, 
+                NOTAS[CONTROL[sensor]], 
+                velocity); 
+
+    break;
+
+  default:
+    break;
+  }
+ 
+    
 }
 
 void SerialPresentation(HardwareSerial &MySerial, int softwareVersion, int jsonVersion){
@@ -24,6 +59,7 @@ void SerialPresentation(HardwareSerial &MySerial, int softwareVersion, int jsonV
 
 void SerialComandosDisponibles(HardwareSerial &MySerial){
   MySerial.println(F("List of available commands"));
+  MySerial.println(F("B - Debug Signals on Serial Port ON / OFF"));
   MySerial.println(F("C,n - Midi Channel [1-16]")); 
   MySerial.println(F("D,n - Detection Time [0, 1000]"));
   MySerial.println(F("F,n - Threshold OFF [0, 0.8 * Threshold on]"));

@@ -36,3 +36,4 @@ int softwareVersion = 2;
 int hardWareVersion = 2;
 int sensoresActivos = 1;
 
+
