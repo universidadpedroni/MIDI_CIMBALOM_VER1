@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #include <config.h>
 #include <findNotes3Options.h>
 #include <SPIFFS.h>
@@ -8,10 +9,9 @@
 
 // OTA con Access Point
 #include <wifiFunctions.h>
-//#include <WiFi.h>
-//#include <ESPAsyncWebServer.h>
-//#include <AsyncElegantOTA.h>
-//#include "wifiConfig.h"
+
+// I2C comm
+
 
 // RTOS
 #include "freertos/FreeRTOS.h"
@@ -34,24 +34,161 @@
 // https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
 // https://randomnerdtutorials.com/decoding-and-encoding-json-with-arduino-or-esp8266/
 
-
-
-void findNotes3(int sensor);
-void findNotes3NoVelocity(int sensor);
-//void plotSignalAndThresholds(float Velocity, int noteState, float Threshold_ON, float Threshold_OFF);
-
 TaskHandle_t presentacionPorSerieTaskHandle;
 
 
+
+// FUNCIONANDO, SIN VELOCIDAD
+void findNotes3(int sensor)
+{
+  
+  unsigned long currentTime = millis();
+  
+  // Reading the amplitude of the signal and going through moving average filter
+  amplik[sensor][0] =  Gain_Velocity * (float)analogRead(CANALES_ADC[sensor]) / Max_Velocity;
+  movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
+ 
+
+  // *** State Machine ***
+  // 1. NOTE OFF -> NOTE OFF
+  if((noteState[sensor] == NOTE_OFF) && 
+     (movingAvVelocityk[sensor] < Threshold_ON))
+     {
+        // Nothing to do here
+     }
+  // 2. NOTE OFF - NOTE ON   
+  else if ((noteState[sensor] == NOTE_OFF) && 
+           (movingAvVelocityk[sensor] > Threshold_ON))
+  {
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    maxVelocity[sensor] = movingAvVelocityk[sensor];
+    notaEnviada[sensor] = false;
+    contadorMax[sensor] = 0;
+    if(serialPlotSignals) SerialShowSignalsLabels(Serial);
+    
+  }
+  // 3. NOTE ON - NOTE ON, No Max
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (movingAvVelocityk[sensor] > Threshold_ON) &&
+           (currentTime - detectionTime[sensor] <= Detection_Time))
+  {
+    if (maxVelocity[sensor] < movingAvVelocityk[sensor])
+    {
+      maxVelocity[sensor] = movingAvVelocityk[sensor];
+    }
+    else
+    {
+      contadorMax[sensor]++;
+    } 
+    detectionTime[sensor] = currentTime;
+    if (contadorMax[sensor] >= Duration_Velocity && notaEnviada[sensor] == false)
+    {
+      //sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],constrain(maxVelocity[sensor],  0, 256));
+      sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
+      if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],(int)constrain(maxVelocity[sensor],  0.0, 256.0) );
+      notaEnviada[sensor] = true;
+      if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],100); 
+    }
+    else
+    {
+      if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0); 
+    }
+    
+ 
+  }
+  
+  // 5. NOTE ON - NOTE OFF
+  else if ((noteState[sensor] == NOTE_ON) &&
+           ((movingAvVelocityk[sensor] < Threshold_OFF) ||
+           (currentTime - detectionTime[sensor] >= Detection_Time)))
+  {
+    noteState[sensor] = NOTE_OFF;
+    maxVelocity[sensor] = 0;
+    sendMIDI(SerialMidi, NOTE_OFF,CONTROL[sensor],0);
+    if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],0);
+    if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
+       
+  }
+  
+  // Updates
+  amplik[sensor][2] = amplik[sensor][1];
+  amplik[sensor][1] = amplik[sensor][0];
+}
+
+void findNotes3NoVelocity(int sensor)
+{
+  
+  unsigned long currentTime = millis();
+  
+  // Reading the amplitude of the signal and going through moving average filter
+  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]);
+  movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
+  
+
+  // *** State Machine ***
+  // 1. NOTE OFF -> NOTE OFF
+  if((noteState[sensor] == NOTE_OFF) && 
+     (movingAvVelocityk[sensor] < Threshold_ON))
+     {
+        // Nothing to do here
+     }
+  // 2. NOTE OFF - NOTE ON   
+  else if ((noteState[sensor] == NOTE_OFF) && 
+           (movingAvVelocityk[sensor] > Threshold_ON))
+  {
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_OFF_ON);
+    //Serial.printf("%.3f Note:  %s, OFF -> ON, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
+    if(serialPlotSignals) SerialShowSignalsLabels(Serial);
+    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
+  }
+  // 3. NOTE ON - NOTE OFF
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (movingAvVelocityk[sensor] < Threshold_OFF))
+  {
+    noteState[sensor] = NOTE_OFF;
+    if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_ON_OFF);
+    //Serial.printf("%.3f  Note:  %s, ON -> OFF, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
+    sendMIDI(SerialMidi,NOTE_OFF,CONTROL[sensor],0);
+    if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
+
+  }
+  // 4. NOTE ON - NEW NOTE
+  else if ((noteState[sensor] == NOTE_ON) &&
+           (movingAvVelocityk[sensor] > Threshold_ON) &&
+           (currentTime - detectionTime[sensor] >= Detection_Time))
+  {
+    noteState[sensor] = NOTE_ON;
+    detectionTime[sensor] = currentTime;
+    if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_ON_NEW_NOTE);
+    if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
+
+    //Serial.printf("%.3f  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]); 
+    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
+  }
+  
+  // Updates
+  amplik[sensor][2] = amplik[sensor][1];
+  amplik[sensor][1] = amplik[sensor][0];
+
+  
+}
+
+
+
 void presentacionPorSerieTask(void *parameter){
-  SerialPresentation(Serial, softwareVersion, jsonVersion);
+  SerialPresentation(Serial, SOFTWARE_VERSION, jsonVersion, HARDWARE_VERSION);
   SerialShowActiveSensors(Serial, sensoresActivos);
   SerialComandosDisponibles(Serial);
   SerialShowConfig(Serial, MIDI_CHANNEL,
                   Threshold_ON, Threshold_OFF,
                   Detection_Time, Gain_Velocity,
                   Duration_Velocity,
-                  TEST_MIDI);
+                  TEST_MIDI,
+                  octava,
+                  127);   // TODO: Dirección I2C hardcodeada                 ;
   //Serial.printf("Tarea ejecutándose en el núcleo %d\n", xPortGetCoreID());
   SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
   SerialSetupFinished(Serial);
@@ -82,6 +219,7 @@ void GPIOSetup()
   pinMode(PIN_OCT_SEL_1, INPUT_PULLUP);
   pinMode(PIN_OCT_SEL_2, INPUT_PULLUP);
 }
+
 
 bool GuardarConfiguracionEnSPIFF()
 {
@@ -120,7 +258,7 @@ bool GuardarConfiguracionEnSPIFF()
   serializeJson(doc,config);
   config.close();
   return true;
-}
+} 
 
 void serialCommands()
 {
@@ -261,6 +399,13 @@ bool CargarConfiguracionDesdeSPIFF()
 }
 
 
+void i2cCommInit(){
+  
+
+}
+
+
+
 void setup()
 {
   // Initial delay
@@ -295,15 +440,23 @@ void setup()
   }
   
   
+  
+  if (TEST_MIDI) TestMIDI(Serial, SerialMidi, 4);
+  // Selección de Octava y dirección de I2C
+  int octava = findOctave(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
+ 
+
   // La presentación por el puerto serie se realiza en el segundo núcleo.
   crearTareaDePresentacionPorSerie();
-  if (TEST_MIDI) TestMIDI(Serial, SerialMidi, 4);
 
+  
+ 
+  
 }
 
 void loop()
 {
-  static int octavaOld = -99;
+  
   static bool noDetectarVelocidadOld = false;
   bool noDetectarVelocidad = digitalRead(PIN_NO_DETECTAR_VELOCIDAD);
   if(noDetectarVelocidad != noDetectarVelocidadOld){
@@ -311,11 +464,7 @@ void loop()
     noDetectarVelocidadOld = noDetectarVelocidad;
   }
 
-  int octava = findOctave(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
-  if(octava != octavaOld){
-    Serial.printf("Octava Seleccionada: %d\n", octava);
-    octavaOld = octava;
-  }
+  
   sustainPedalUpdate();
   serialCommands();
   
@@ -331,150 +480,7 @@ void loop()
 }
 
 
-// FUNCIONANDO, SIN VELOCIDAD
-void findNotes3NoVelocity(int sensor)
-{
-  
-  unsigned long currentTime = millis();
-  
-  // Reading the amplitude of the signal and going through moving average filter
-  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]);
-  movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
-  
 
-  // *** State Machine ***
-  // 1. NOTE OFF -> NOTE OFF
-  if((noteState[sensor] == NOTE_OFF) && 
-     (movingAvVelocityk[sensor] < Threshold_ON))
-     {
-        // Nothing to do here
-     }
-  // 2. NOTE OFF - NOTE ON   
-  else if ((noteState[sensor] == NOTE_OFF) && 
-           (movingAvVelocityk[sensor] > Threshold_ON))
-  {
-    noteState[sensor] = NOTE_ON;
-    detectionTime[sensor] = currentTime;
-    if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_OFF_ON);
-    //Serial.printf("%.3f Note:  %s, OFF -> ON, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
-    if(serialPlotSignals) SerialShowSignalsLabels(Serial);
-    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
-  }
-  // 3. NOTE ON - NOTE OFF
-  else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] < Threshold_OFF))
-  {
-    noteState[sensor] = NOTE_OFF;
-    if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_ON_OFF);
-    //Serial.printf("%.3f  Note:  %s, ON -> OFF, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
-    sendMIDI(SerialMidi,NOTE_OFF,CONTROL[sensor],0);
-    if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
-
-  }
-  // 4. NOTE ON - NEW NOTE
-  else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] > Threshold_ON) &&
-           (currentTime - detectionTime[sensor] >= Detection_Time))
-  {
-    noteState[sensor] = NOTE_ON;
-    detectionTime[sensor] = currentTime;
-    if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_ON_NEW_NOTE);
-    if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
-
-    //Serial.printf("%.3f  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]); 
-    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
-  }
-  
-  // Updates
-  amplik[sensor][2] = amplik[sensor][1];
-  amplik[sensor][1] = amplik[sensor][0];
-
-   
-  
-  
-}
-
-
-void findNotes3(int sensor)
-{
-  
-  unsigned long currentTime = millis();
-  
-  // Reading the amplitude of the signal and going through moving average filter
-  amplik[sensor][0] =  Gain_Velocity * (float)analogRead(CANALES_ADC[sensor]) / Max_Velocity;
-  movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
- 
-
-  // *** State Machine ***
-  // 1. NOTE OFF -> NOTE OFF
-  if((noteState[sensor] == NOTE_OFF) && 
-     (movingAvVelocityk[sensor] < Threshold_ON))
-     {
-        // Nothing to do here
-     }
-  // 2. NOTE OFF - NOTE ON   
-  else if ((noteState[sensor] == NOTE_OFF) && 
-           (movingAvVelocityk[sensor] > Threshold_ON))
-  {
-    noteState[sensor] = NOTE_ON;
-    detectionTime[sensor] = currentTime;
-    maxVelocity[sensor] = movingAvVelocityk[sensor];
-    notaEnviada[sensor] = false;
-    contadorMax[sensor] = 0;
-    if(serialPlotSignals) SerialShowSignalsLabels(Serial);
-    
-  }
-  // 3. NOTE ON - NOTE ON, No Max
-  else if ((noteState[sensor] == NOTE_ON) &&
-           (movingAvVelocityk[sensor] > Threshold_ON) &&
-           (currentTime - detectionTime[sensor] <= Detection_Time))
-  {
-    if (maxVelocity[sensor] < movingAvVelocityk[sensor])
-    {
-      maxVelocity[sensor] = movingAvVelocityk[sensor];
-    }
-    else
-    {
-      contadorMax[sensor]++;
-    } 
-    detectionTime[sensor] = currentTime;
-    if (contadorMax[sensor] >= Duration_Velocity && notaEnviada[sensor] == false)
-    {
-      //sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],constrain(maxVelocity[sensor],  0, 256));
-      sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
-      if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],(int)constrain(maxVelocity[sensor],  0.0, 256.0) );
-      notaEnviada[sensor] = true;
-      if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],100); 
-    }
-    else
-    {
-      if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0); 
-    }
-    
- 
-  }
-  
-  // 5. NOTE ON - NOTE OFF
-  else if ((noteState[sensor] == NOTE_ON) &&
-           ((movingAvVelocityk[sensor] < Threshold_OFF) ||
-           (currentTime - detectionTime[sensor] >= Detection_Time)))
-  {
-    noteState[sensor] = NOTE_OFF;
-    maxVelocity[sensor] = 0;
-    sendMIDI(SerialMidi, NOTE_OFF,CONTROL[sensor],0);
-    if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],0);
-    if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
-       
-  }
-  
-  // Updates
-  amplik[sensor][2] = amplik[sensor][1];
-  amplik[sensor][1] = amplik[sensor][0];
-  
-  
-  
-
-}
 
 
 

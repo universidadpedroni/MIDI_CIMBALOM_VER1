@@ -14,3 +14,5 @@ M,n - Test Midi [0,1]
 P - Plot Signals ON / OFF
 T,n - Threshold ON [0, 200]
 S, n - enabled Sensors [1 - 5]
+
+// Funciones Originales.

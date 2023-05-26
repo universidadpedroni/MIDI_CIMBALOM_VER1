@@ -49,7 +49,7 @@ void SerialDebugSignals(unsigned long time, int sensor, float velocity, int esta
     
 }
 
-void SerialPresentation(HardwareSerial &MySerial, int softwareVersion, int jsonVersion){
+void SerialPresentation(HardwareSerial &MySerial, int softwareVersion, int jsonVersion, int hardWareVersion){
     MySerial.println();
     MySerial.printf("Software Ver: %d\nJson Ver: %d\nHardware Ver: %d\n", softwareVersion, jsonVersion, hardWareVersion);
     MySerial.printf("Compilation Date: %s, %s\n", __DATE__ , __TIME__);
@@ -78,7 +78,9 @@ void SerialShowConfig(HardwareSerial &MySerial,
                       unsigned long Detection_Time,
                       float Gain_Velocity,
                       int Duration_Velocity,
-                      bool TEST_MIDI)
+                      bool TEST_MIDI,
+                      int octava,
+                      u_int8_t i2cAddress)
 {
   MySerial.println(F("System Config:"));
   MySerial.printf("Midi Channel Tx: %d \n", MIDI_CHANNEL);
@@ -86,7 +88,9 @@ void SerialShowConfig(HardwareSerial &MySerial,
   MySerial.printf("Detection Interval: %d ms\n",Detection_Time);
   MySerial.printf("Velocity Gain: %.2f\n", Gain_Velocity);
   MySerial.printf("Velocity Duration: %d\n", Duration_Velocity);
-  
+  MySerial.printf("Octave: %d\n", octava);
+  MySerial.print("I2C address: 0x");
+  MySerial.println(i2cAddress, HEX);
   MySerial.print(F("Initial MIDI Test: "));
   TEST_MIDI == true? MySerial.println(F("Yes")) : MySerial.println(F("No"));
   

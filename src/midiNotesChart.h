@@ -1,3 +1,6 @@
+#ifndef MIDINOTESCHART_H
+#define MIDINOTESCHART_H
+
 // Midi Notes Chart
 const char *NOTAS[] = {"G#","G#-1","A-1","A#-1", "B-1",
                        "C0" ,"C#0","D0","D#0", "E0", "F0", "G0", "G#0", "A0", "A#0", "B0",
@@ -11,3 +14,4 @@ const char *NOTAS[] = {"G#","G#-1","A-1","A#-1", "B-1",
                        "C8" ,"C#8","D8","D#8", "E8", "F8", "G8", "G#8", "A8", "A#8", "B8",
                        "C9" ,"C#9","D9","D#9", "E9", "F9", "G9"};
 
+#endif
