@@ -73,14 +73,14 @@ void GPIOSetup()
 {
   // Sustain Pedal
   pinMode(PIN_SUSTAIN_PEDAL,INPUT_PULLUP);
-  // Setup PIN
-  pinMode(PIN_SETUP, INPUT_PULLUP);
   // OTA PIN
   pinMode(PIN_OTA, INPUT_PULLUP);
   // Pin para determinar qué función se usa para detectar las notas.
   pinMode(PIN_NO_DETECTAR_VELOCIDAD, INPUT_PULLUP);
-
-
+  // Pines para la selección de la octava.
+  pinMode(PIN_OCT_SEL_0, INPUT_PULLUP);
+  pinMode(PIN_OCT_SEL_1, INPUT_PULLUP);
+  pinMode(PIN_OCT_SEL_2, INPUT_PULLUP);
 }
 
 bool GuardarConfiguracionEnSPIFF()
@@ -299,6 +299,12 @@ void setup()
 
 void loop()
 {
+  static int octavaOld = -99;
+  int octava = findOctave(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
+  if(octava != octavaOld){
+    Serial.printf("Octava Seleccionada: %d\n", octava);
+    octavaOld = octava;
+  }
   sustainPedalUpdate();
   serialCommands();
   

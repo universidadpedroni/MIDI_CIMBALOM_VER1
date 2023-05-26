@@ -6,6 +6,13 @@
 
 #define COMMA F(",")
 
+int findOctave(int pinOctaveSel0, int pinOctaveSel1, int pinOctaveSel2){
+  int octava = 0x00;
+  bitWrite(octava, 0, !digitalRead(pinOctaveSel0));
+  bitWrite(octava, 1, !digitalRead(pinOctaveSel1));
+  bitWrite(octava, 2, !digitalRead(pinOctaveSel2));
+  return octava;
+}
 
 void SerialPresentation(HardwareSerial &MySerial, int softwareVersion, int jsonVersion){
     MySerial.println();

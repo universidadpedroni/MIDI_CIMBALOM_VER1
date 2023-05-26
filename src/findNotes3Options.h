@@ -11,34 +11,29 @@ const int CONTROL_CHANGE = 0xB0;
 const int SUSTAIN = 0x40;       // sustain pedal
 // const int AFTERTOUCH = 0xA0;
 
-
-const int NUM_SENSORES = 10; // Esta es la variable que manda con cuántos sensores se trabaja. 10 sensores, 700uSeg
-
-const int CANALES_ADC[] = { GPIO_NUM_36,    // ENV0_ADC1_CH0
-                            GPIO_NUM_39,    // ENV1_ADC1_CH3
-                            GPIO_NUM_34,    // ENV2_ADC1_CH6
-                            GPIO_NUM_35,    // ENV3_ADC1_CH7
-                            GPIO_NUM_32,    // ENV4_ADC1_CH4
-                            GPIO_NUM_33,    // ENV5_ADC1_CH5
-                            GPIO_NUM_25,    // ENV6_ADC2_CH8
-                            GPIO_NUM_26,    // ENV7_ADC2_CH9
-                            GPIO_NUM_27,    // ENV8_ADC2_CH7 
-                            GPIO_NUM_14,    // ENV9_ADC2_CH6
-                            GPIO_NUM_12,    // ENV10_ADC2_CH5
-                            GPIO_NUM_13,    // ENV11_ADC2_CH4
-                            GPIO_NUM_4,     // ENV12_ADC2_CH0
-                            GPIO_NUM_2,     // ENV13_ADC2_CH2
-                            GPIO_NUM_15     // ENV14_ADC2_CH3    
-                        };
-
+const int CANALES_ADC[] = { GPIO_NUM_13,    // ENV0
+                            GPIO_NUM_12,    // ENV1
+                            GPIO_NUM_14,    // ENV2
+                            GPIO_NUM_27,    // ENV3
+                            GPIO_NUM_26,    // ENV4
+                            GPIO_NUM_25,    // ENV5
+                            GPIO_NUM_33,    // ENV6
+                            GPIO_NUM_32,    // ENV7
+                            GPIO_NUM_35,    // ENV8 
+                            GPIO_NUM_34,    // ENV9
+                            GPIO_NUM_39,    // ENV10
+                            GPIO_NUM_36,    // ENV11
+                                
+                        }; // 12 canales, 1 octava completa.
+const int NUM_SENSORES = 12;
 
 int noteState[NUM_SENSORES] = {NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF,
                                NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF,
-                               NOTE_OFF, NOTE_OFF};
+                               NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF};
                                
 bool notaEnviada[NUM_SENSORES] = {false, false, false, false,
                                   false, false, false, false,
-                                  false, false};
+                                  false, false, false, false};
 
 
 float amplik[NUM_SENSORES][3] = {0}; // Sensor reading
@@ -53,9 +48,9 @@ int contadorMax[NUM_SENSORES] = {0};
 // Constants with DEFAULT VALUES. All of this parameters are updated using a json file.
 
 // notes to play, corresponding to all sensors: 
-int CONTROL[] = { 36, 38, 40, 43,
-                        45, 47, 48, 50,
-                        52, 55}; 
+int CONTROL[NUM_SENSORES] = { 36, 38, 40, 43,
+                              45, 47, 48, 50,
+                              52, 55, 57, 59}; 
 const float THRESHOLD_ON_DEFAULT = 100;
 const float MAX_VELOCITY_DEFAULT = 17000;
 const float GAIN_VELOCITY_DEFAULT = 1;
