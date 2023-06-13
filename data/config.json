@@ -1,9 +1,9 @@
 {
     "JSON_VERSION" : 3,
     "MIDI_CHANNEL": 1,
-    "CONTROL": [ 57, 59, 42, 40,
-                 50, 51, 52, 53,
-                 54, 55, 47, 49],
+    "CONTROL": [ 24, 25, 26, 27,
+                 28, 29, 30, 31,
+                 32, 33, 34, 35],
     "THRESHOLD_ON": 90,
     "THRESHOLD_OFF": 25,
     "DETECTION_TIME" : 200,

@@ -10,12 +10,10 @@
 // OTA con Access Point
 #include <wifiFunctions.h>
 
-// I2C comm
-
-
 // RTOS
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 
 // TODO: ESP32 as slave
 // Wire Master Reader
@@ -35,8 +33,6 @@
 // https://randomnerdtutorials.com/decoding-and-encoding-json-with-arduino-or-esp8266/
 
 TaskHandle_t presentacionPorSerieTaskHandle;
-
-
 
 // FUNCIONANDO, SIN VELOCIDAD
 void findNotes3(int sensor)
@@ -84,7 +80,8 @@ void findNotes3(int sensor)
     detectionTime[sensor] = currentTime;
     if (contadorMax[sensor] >= Duration_Velocity && notaEnviada[sensor] == false)
     {
-      //sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],constrain(maxVelocity[sensor],  0, 256));
+      // Se actualizan los valores de cmd, data1 y data2 para los esclavos.
+      
       sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],(int)maxVelocity[sensor]);
       if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],(int)constrain(maxVelocity[sensor],  0.0, 256.0) );
       notaEnviada[sensor] = true;
@@ -105,6 +102,8 @@ void findNotes3(int sensor)
   {
     noteState[sensor] = NOTE_OFF;
     maxVelocity[sensor] = 0;
+    // Se actualizan los valores de cmd, data1 y data2 para los esclavos.
+    
     sendMIDI(SerialMidi, NOTE_OFF,CONTROL[sensor],0);
     if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],0);
     if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
@@ -140,9 +139,9 @@ void findNotes3NoVelocity(int sensor)
     noteState[sensor] = NOTE_ON;
     detectionTime[sensor] = currentTime;
     if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_OFF_ON);
-    //Serial.printf("%.3f Note:  %s, OFF -> ON, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
     if(serialPlotSignals) SerialShowSignalsLabels(Serial);
-    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
+    
+    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],MIDI_VEL_TEST);
   }
   // 3. NOTE ON - NOTE OFF
   else if ((noteState[sensor] == NOTE_ON) &&
@@ -150,7 +149,7 @@ void findNotes3NoVelocity(int sensor)
   {
     noteState[sensor] = NOTE_OFF;
     if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_ON_OFF);
-    //Serial.printf("%.3f  Note:  %s, ON -> OFF, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]);
+    
     sendMIDI(SerialMidi,NOTE_OFF,CONTROL[sensor],0);
     if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
 
@@ -165,8 +164,8 @@ void findNotes3NoVelocity(int sensor)
     if (serialDebugSignals) SerialDebugSignals(millis(), sensor, movingAvVelocityk[sensor], ESTADO_ON_NEW_NOTE);
     if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
 
-    //Serial.printf("%.3f  Note:  %s, ON -> NEW NOTE, Amplitud: %.2f \n",(float)millis() / 1000.0, NOTAS[CONTROL[sensor]], movingAvVelocityk[sensor]); 
-    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],127);
+    
+    sendMIDI(SerialMidi,NOTE_ON,CONTROL[sensor],MIDI_VEL_TEST);
   }
   
   // Updates
@@ -175,7 +174,6 @@ void findNotes3NoVelocity(int sensor)
 
   
 }
-
 
 
 void presentacionPorSerieTask(void *parameter){
@@ -187,8 +185,7 @@ void presentacionPorSerieTask(void *parameter){
                   Detection_Time, Gain_Velocity,
                   Duration_Velocity,
                   TEST_MIDI,
-                  octava,
-                  127);   // TODO: Dirección I2C hardcodeada                 ;
+                  boardNumber);   
   //Serial.printf("Tarea ejecutándose en el núcleo %d\n", xPortGetCoreID());
   SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
   SerialSetupFinished(Serial);
@@ -220,7 +217,6 @@ void GPIOSetup()
   pinMode(PIN_OCT_SEL_2, INPUT_PULLUP);
 }
 
-
 bool GuardarConfiguracionEnSPIFF()
 {
   // Nombre del archivo: config.json
@@ -239,10 +235,10 @@ bool GuardarConfiguracionEnSPIFF()
   // Create
   DynamicJsonDocument doc(2048);
   // Actualización de Valores
-  for (int i = 0; i < NUM_SENSORES; i++)
-  {
-    doc["CONTROL"][i] = CONTROL[i];
-  }
+  //for (int i = 0; i < NUM_SENSORES; i++)
+  //{
+  //  doc["CONTROL"][i] = CONTROL[i];
+  //}
   doc["MIDI_CHANNEL"] = MIDI_CHANNEL;
   doc["THRESHOLD_ON"] = Threshold_ON;
   doc["THRESHOLD_OFF"] = Threshold_OFF;
@@ -267,7 +263,7 @@ void serialCommands()
     if (Serial.available() > 0)
     {
       char comando = toupper(Serial.read());
-      Serial.printf("Comando recibido: %c\n", comando);
+      
       switch (comando)
       {
         case 'B':   // Serial Debug Signals. Muestra información por el puerto Serie
@@ -293,7 +289,17 @@ void serialCommands()
         case 'H': // show help
           SerialComandosDisponibles(Serial);
           break;
-        case 'M':   // Test midi
+        case 'M':  // Midi comming from other boards - Plan B
+          if (Serial.available() >= 3) {
+            int cmd = Serial.read();
+            int data1 = Serial.read();
+            int data2 = Serial.read();
+            sendMIDI(SerialMidi, cmd, data1, data2);
+            //Serial.printf("C %x, D1 %x, D2 %x\n", cmd, data1, data2);
+          }
+          break;
+
+        case 'N':   // Test midi
           midiTest = Serial.parseInt();
           midiTest = constrain(midiTest,0,1);
           midiTest == 1? TEST_MIDI = true : TEST_MIDI = false;
@@ -312,6 +318,7 @@ void serialCommands()
           SerialShowActiveSensors(Serial, sensoresActivos);
           break;
         default:
+          Serial.printf("Comando recibido: %c desconocido\n", comando);
           break;
       }
       GuardarConfiguracionEnSPIFF();
@@ -387,7 +394,7 @@ bool CargarConfiguracionDesdeSPIFF()
     
     for (int i = 0; i < NUM_SENSORES; i++)
     {
-      CONTROL[i] = (int)doc["CONTROL"][i];
+      CONTROL[i] = (int)doc["CONTROL"][i] + 12 * boardNumber;
     }
   
   }
@@ -397,13 +404,6 @@ bool CargarConfiguracionDesdeSPIFF()
   return true;
 
 }
-
-
-void i2cCommInit(){
-  
-
-}
-
 
 
 void setup()
@@ -416,7 +416,14 @@ void setup()
   Serial.begin(BAUDRATE);
   Serial.flush();
   Serial.println(F("Starting Init..."));
-  SerialMidi.begin(MIDI_BAUDRATE);
+  
+  // Selección de Octava y dirección de I2C
+  boardNumber = findOctave(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
+  
+  boardNumber == 0? SerialMidi.begin(MIDI_BAUDRATE): SerialMidi.begin(BAUDRATE);
+  // Plan B. Como no puedo usar el I2C, voy a comunicar las ESPs por los puertos series.
+  // Cada esclava sale desde el puerto serialMidi y entra al Serial de la board previa.
+  // El mensaje midi comienza con una letra M. Al recibir la letra M, automaticamente la board retransmite por el puerto Serial 1 
   SerialMidi.flush();
   // ADC Setup
   analogReadResolution(16);
@@ -435,28 +442,20 @@ void setup()
   else
   {
     Serial.println(F("Loading Default Config"));
-    // TODO : Cargar config por defecto
-    
+       
   }
   
-  
-  
-  if (TEST_MIDI) TestMIDI(Serial, SerialMidi, 4);
-  // Selección de Octava y dirección de I2C
-  int octava = findOctave(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
- 
-
+  if (TEST_MIDI){
+    delay(1000 * boardNumber); // Para que no escriban todas juntas
+    TestMIDI(Serial, SerialMidi, 20);
+  } 
   // La presentación por el puerto serie se realiza en el segundo núcleo.
   crearTareaDePresentacionPorSerie();
-
-  
- 
-  
 }
 
 void loop()
 {
-  
+ 
   static bool noDetectarVelocidadOld = false;
   bool noDetectarVelocidad = digitalRead(PIN_NO_DETECTAR_VELOCIDAD);
   if(noDetectarVelocidad != noDetectarVelocidadOld){
@@ -464,35 +463,17 @@ void loop()
     noDetectarVelocidadOld = noDetectarVelocidad;
   }
 
+  if(boardNumber == 0) sustainPedalUpdate();
   
-  sustainPedalUpdate();
   serialCommands();
   
-  //for (int i = 0; i < NUM_SENSORES; i++)
+  
   for (int i = 0; i < sensoresActivos; i++)
   {
-    //if (i == 0) digitalWrite(PIN_SPEED,HIGH);
     noDetectarVelocidad == true? findNotes3NoVelocity(i):findNotes3(i);
-    //if (i == 0) digitalWrite(PIN_SPEED,LOW);
-    
+       
   }
+  //if(boardNumber != 0) TestMIDI(Serial, SerialMidi, 10); 
+  
     
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

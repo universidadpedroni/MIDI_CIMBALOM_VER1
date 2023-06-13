@@ -11,7 +11,7 @@ int sensoresActivos = 1;            // Cantidad de sensores con los que trabaja 
 const long BAUDRATE = 115200;       // Baudrte for serial com
 const long MIDI_BAUDRATE = 31250;    // Baudrate for MIDI port
 #define SerialMidi Serial2
-
+const int MIDI_VEL_TEST = 80;
 
 
 
@@ -24,7 +24,7 @@ int sustainlastState = 1;
 const char* JSON_FILE_NAME = "/config.json";
 
 // Direcciones para I2C
-int octava = 0;
+int boardNumber = 0;
 
 #endif
 

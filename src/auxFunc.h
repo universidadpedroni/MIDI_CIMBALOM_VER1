@@ -67,7 +67,7 @@ void SerialComandosDisponibles(HardwareSerial &MySerial){
   MySerial.println(F("M,n - Test Midi [0,1]"));
   MySerial.println(F("P - Plot Signals ON / OFF"));
   MySerial.println(F("T,n - Threshold ON [0, 200]"));
-  MySerial.println(F("S, n - enabled Sensors [1 - 5]" ));   // TODO: Ajustar a la cantidad de sensores disponibles.
+  MySerial.println(F("S, n - enabled Sensors [1 - 16]" ));   // TODO: Ajustar a la cantidad de sensores disponibles.
 
 }
 
@@ -79,8 +79,7 @@ void SerialShowConfig(HardwareSerial &MySerial,
                       float Gain_Velocity,
                       int Duration_Velocity,
                       bool TEST_MIDI,
-                      int octava,
-                      u_int8_t i2cAddress)
+                      int octava)
 {
   MySerial.println(F("System Config:"));
   MySerial.printf("Midi Channel Tx: %d \n", MIDI_CHANNEL);
@@ -88,9 +87,8 @@ void SerialShowConfig(HardwareSerial &MySerial,
   MySerial.printf("Detection Interval: %d ms\n",Detection_Time);
   MySerial.printf("Velocity Gain: %.2f\n", Gain_Velocity);
   MySerial.printf("Velocity Duration: %d\n", Duration_Velocity);
-  MySerial.printf("Octave: %d\n", octava);
-  MySerial.print("I2C address: 0x");
-  MySerial.println(i2cAddress, HEX);
+  MySerial.printf("Octave: %d\n", octava + 1);
+  octava == 0? MySerial.println("ESP32 as Master") : MySerial.printf("ESP as Slave %d\n", octava);
   MySerial.print(F("Initial MIDI Test: "));
   TEST_MIDI == true? MySerial.println(F("Yes")) : MySerial.println(F("No"));
   
@@ -162,7 +160,7 @@ void sendMIDI(HardwareSerial &SerialMidi, int cmd, int data1, int data2)
   // cmd: NOTE_OFF, data1: pitch, data2: 0
   // cmd: CONTROL_CHANGE, data1: SUSTAIN, data2: 0 - 127
   cmd = cmd | char(MIDI_CHANNEL - 1);    // merge channel number
-  
+  if (boardNumber != 0) SerialMidi.write('M');
 	SerialMidi.write(cmd);
 	SerialMidi.write(data1);
 	SerialMidi.write(data2);
@@ -176,9 +174,9 @@ void TestMIDI(HardwareSerial &MySerial,HardwareSerial &SerialMidi, int repeticio
   while(i < repeticiones)
   {
     
-    sendMIDI(SerialMidi, NOTE_ON,CONTROL[j],127);
+    sendMIDI(SerialMidi, NOTE_ON,CONTROL[j] ,MIDI_VEL_TEST);
     
-    sendMIDI(SerialMidi, NOTE_ON,CONTROL[j],0);
+    sendMIDI(SerialMidi, NOTE_ON,CONTROL[j] ,0);
     j <  3? j++: j=0; 
     MySerial.printf("Sending Note N° %d, MIDI code %d, Note %s\n",i, CONTROL[j],NOTAS[CONTROL[j]]);
     delay(100);

@@ -29,4 +29,10 @@ const int PIN_ENV_11 = GPIO_NUM_36;    // ENV11
 // Pin para el pedal de sustain
 const int PIN_SUSTAIN_PEDAL = GPIO_NUM_23;     // Pin para el pedal de sustain
 
+// Pines para la comunicación entre boards
+const int PIN_TX_MASTER = GPIO_NUM_21;
+const int PIN_RX_MASTER = GPIO_NUM_22;
+const int PIN_TX_SLAVE = GPIO_NUM_22;
+const int PIN_RX_SLAVE = GPIO_NUM_21;
+
 #endif
