@@ -211,6 +211,8 @@ void GPIOSetup()
   pinMode(PIN_OTA, INPUT_PULLUP);
   // Pin para determinar qué función se usa para detectar las notas.
   pinMode(PIN_NO_DETECTAR_VELOCIDAD, INPUT_PULLUP);
+  // Pin para ejecutar el midi test
+  pinMode(PIN_MIDI_TEST, INPUT_PULLUP);
   // Pines para la selección de la octava.
   pinMode(PIN_OCT_SEL_0, INPUT_PULLUP);
   pinMode(PIN_OCT_SEL_1, INPUT_PULLUP);
@@ -234,11 +236,7 @@ bool GuardarConfiguracionEnSPIFF()
   
   // Create
   DynamicJsonDocument doc(2048);
-  // Actualización de Valores
-  //for (int i = 0; i < NUM_SENSORES; i++)
-  //{
-  //  doc["CONTROL"][i] = CONTROL[i];
-  //}
+  
   doc["MIDI_CHANNEL"] = MIDI_CHANNEL;
   doc["THRESHOLD_ON"] = Threshold_ON;
   doc["THRESHOLD_OFF"] = Threshold_OFF;
@@ -247,7 +245,7 @@ bool GuardarConfiguracionEnSPIFF()
   doc["DETECTION_TIME"] = Detection_Time;
   doc["DURATION_VELOCITY"] = Duration_Velocity;
   TEST_MIDI == true? doc["TEST_MIDI"] = 1 : doc["TEST_MIDI"] = 0;
-  doc["JSON_VERSION"] = jsonVersion;
+  //doc["JSON_VERSION"] = jsonVersion;
 
  
   // Serialize JSON to file
@@ -373,14 +371,16 @@ bool CargarConfiguracionDesdeSPIFF()
   }
   else
   {
+    // serializeJsonPretty(doc, Serial); // Muestra todo el contenido del json
     Serial.println(F("Loading config from json File"));
-    jsonVersion = (int)doc["JSON_VERSION"];
-    MIDI_CHANNEL = (int)doc["MIDI_CHANNEL"];
-    Threshold_ON = (float)doc["THRESHOLD_ON"];
-    Threshold_OFF = (float)doc["THRESHOLD_OFF"];
-    Max_Velocity = (float)doc["MAX_VELOCITY"];
-    Gain_Velocity = (float)doc["GAIN_VELOCITY"];
-    Duration_Velocity = (int)doc["DURATION_VELOCITY"];
+    jsonVersion = doc["JSON_VERSION"].as<int>();
+    Serial.printf("Json Version: %d\n", jsonVersion);
+    MIDI_CHANNEL = doc["MIDI_CHANNEL"].as<int>();
+    Threshold_ON = doc["THRESHOLD_ON"].as<float>();
+    Threshold_OFF = doc["THRESHOLD_OFF"].as<float>();
+    Max_Velocity =  doc["MAX_VELOCITY"].as<float>();
+    Gain_Velocity = doc["GAIN_VELOCITY"].as<float>();
+    Duration_Velocity = doc["DURATION_VELOCITY"].as<int>();
     Detection_Time = (unsigned long) doc["DETECTION_TIME"];
     TEST_MIDI = (bool) doc["TEST_MIDI"];
     
@@ -392,11 +392,12 @@ bool CargarConfiguracionDesdeSPIFF()
     if(Duration_Velocity < 1 || Duration_Velocity > 100) Duration_Velocity = DURATION_VELOCITY_DEFAULT;
     
     
+    
     for (int i = 0; i < NUM_SENSORES; i++)
     {
-      CONTROL[i] = (int)doc["CONTROL"][i] + 12 * boardNumber;
+      CONTROL[i] = doc["CONTROL"][String(boardNumber)][i].as<int>();
+      Serial.println(CONTROL[i]);
     }
-  
   }
 
   config.close();
@@ -418,7 +419,7 @@ void setup()
   Serial.println(F("Starting Init..."));
   
   // Selección de Octava y dirección de I2C
-  boardNumber = findOctave(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
+  boardNumber = findBoard(PIN_OCT_SEL_0, PIN_OCT_SEL_1, PIN_OCT_SEL_2);
   
   boardNumber == 0? SerialMidi.begin(MIDI_BAUDRATE): SerialMidi.begin(BAUDRATE);
   // Plan B. Como no puedo usar el I2C, voy a comunicar las ESPs por los puertos series.
@@ -445,10 +446,6 @@ void setup()
        
   }
   
-  if (TEST_MIDI){
-    delay(1000 * boardNumber); // Para que no escriban todas juntas
-    TestMIDI(Serial, SerialMidi, 20);
-  } 
   // La presentación por el puerto serie se realiza en el segundo núcleo.
   crearTareaDePresentacionPorSerie();
 }
@@ -473,7 +470,9 @@ void loop()
     noDetectarVelocidad == true? findNotes3NoVelocity(i):findNotes3(i);
        
   }
-  //if(boardNumber != 0) TestMIDI(Serial, SerialMidi, 10); 
   
+  if (!digitalRead(PIN_MIDI_TEST)){
+    TestMIDI(Serial, SerialMidi, 1);
+  }
     
 }

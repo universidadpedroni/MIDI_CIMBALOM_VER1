@@ -9,12 +9,13 @@
 #define ESTADO_ON_OFF 1
 #define ESTADO_ON_NEW_NOTE 2
 
-int findOctave(int pinOctaveSel0, int pinOctaveSel1, int pinOctaveSel2){
-  int octava = 0x00;
-  bitWrite(octava, 0, !digitalRead(pinOctaveSel0));
-  bitWrite(octava, 1, !digitalRead(pinOctaveSel1));
-  bitWrite(octava, 2, !digitalRead(pinOctaveSel2));
-  return octava;
+int findBoard(int pinOctaveSel0, int pinOctaveSel1, int pinOctaveSel2){
+  int board = 0x00;
+  bitWrite(board, 0, !digitalRead(pinOctaveSel0));
+  bitWrite(board, 1, !digitalRead(pinOctaveSel1));
+  bitWrite(board, 2, !digitalRead(pinOctaveSel2));
+  if ( board >= MAX_BOARD_NUMBER) board = MAX_BOARD_NUMBER - 1;
+  return board;
 }
 
 

@@ -25,6 +25,6 @@ const char* JSON_FILE_NAME = "/config.json";
 
 // Direcciones para I2C
 int boardNumber = 0;
-
+const int MAX_BOARD_NUMBER = 5; // Cantidad de boards que usaremos.
 #endif
 

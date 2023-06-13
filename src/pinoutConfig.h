@@ -7,7 +7,9 @@
 
 const int PIN_OTA = GPIO_NUM_15;              // Pin para activar el OTA
 const int PIN_NO_DETECTAR_VELOCIDAD = GPIO_NUM_4;      // Pin que determina si se usa la función findNotes3NoVelocity(i) o findNotes3(i);
+const int PIN_MIDI_TEST = GPIO_NUM_2;               // Pin para ejecutar el MIDI TEST
 
+// Pines para seleccionar el board.
 const int PIN_OCT_SEL_0 = GPIO_NUM_19;
 const int PIN_OCT_SEL_1 = GPIO_NUM_18;
 const int PIN_OCT_SEL_2 = GPIO_NUM_5;

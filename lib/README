@@ -48,9 +48,9 @@ More information about PlatformIO Library Dependency Finder
 ====================================================================
 DIPSWITCH CONFIG
 DipSwitch 4 contacts.
-Switch 1: TBD
+Switch 1: MIDI TEST
 Switch 2: When set to 0, velocity is not calculated. When set to 1, velocity is calculated.
-Switch 3: TBD
+Switch 3: TBD. Do not use. It is wired to RX2
 Switch 4: Set it to 1 and power on the board to enable the web server for updates. THe board will not work in this mode.
 
 DipSwitch 3 contacts.
