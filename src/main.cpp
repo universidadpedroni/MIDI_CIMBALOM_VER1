@@ -6,6 +6,7 @@
 #include <ArduinoJson.h>
 #include "debugConstants.h"
 #include <auxFunc.h>
+#include <dipSwitchFunc.h>
 
 // OTA con Access Point
 #include <wifiFunctions.h>
@@ -33,6 +34,8 @@
 // https://randomnerdtutorials.com/decoding-and-encoding-json-with-arduino-or-esp8266/
 
 TaskHandle_t presentacionPorSerieTaskHandle;
+
+
 
 // FUNCIONANDO, SIN VELOCIDAD
 void findNotes3(int sensor)
@@ -184,7 +187,6 @@ void presentacionPorSerieTask(void *parameter){
                   Threshold_ON, Threshold_OFF,
                   Detection_Time, Gain_Velocity,
                   Duration_Velocity,
-                  TEST_MIDI,
                   boardNumber);   
   //Serial.printf("Tarea ejecutándose en el núcleo %d\n", xPortGetCoreID());
   SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
@@ -208,11 +210,11 @@ void GPIOSetup()
   // Sustain Pedal
   pinMode(PIN_SUSTAIN_PEDAL,INPUT_PULLUP);
   // OTA PIN
-  pinMode(PIN_OTA, INPUT_PULLUP);
+  //pinMode(PIN_OTA, INPUT_PULLUP);
   // Pin para determinar qué función se usa para detectar las notas.
-  pinMode(PIN_NO_DETECTAR_VELOCIDAD, INPUT_PULLUP);
+  pinMode(PIN_OPTIONS_0, INPUT_PULLUP);
   // Pin para ejecutar el midi test
-  pinMode(PIN_MIDI_TEST, INPUT_PULLUP);
+  pinMode(PIN_OPTIONS_1, INPUT_PULLUP);
   // Pines para la selección de la octava.
   pinMode(PIN_OCT_SEL_0, INPUT_PULLUP);
   pinMode(PIN_OCT_SEL_1, INPUT_PULLUP);
@@ -244,8 +246,7 @@ bool GuardarConfiguracionEnSPIFF()
   doc["GAIN_VELOCITY"] = Gain_Velocity;
   doc["DETECTION_TIME"] = Detection_Time;
   doc["DURATION_VELOCITY"] = Duration_Velocity;
-  TEST_MIDI == true? doc["TEST_MIDI"] = 1 : doc["TEST_MIDI"] = 0;
-  //doc["JSON_VERSION"] = jsonVersion;
+  
 
  
   // Serialize JSON to file
@@ -297,11 +298,11 @@ void serialCommands()
           }
           break;
 
-        case 'N':   // Test midi
-          midiTest = Serial.parseInt();
-          midiTest = constrain(midiTest,0,1);
-          midiTest == 1? TEST_MIDI = true : TEST_MIDI = false;
-          break;
+        //case 'N':   // Test midi
+        //  midiTest = Serial.parseInt();
+        //  midiTest = constrain(midiTest,0,1);
+        //  midiTest == 1? TEST_MIDI = true : TEST_MIDI = false;
+        //  break;
         case 'P':   // Plot Signals
           serialPlotSignals = !serialPlotSignals;
           serialPlotSignals? Serial.println("Plot Signals ON") : Serial.println("Plot Signals OFF");
@@ -374,15 +375,14 @@ bool CargarConfiguracionDesdeSPIFF()
     // serializeJsonPretty(doc, Serial); // Muestra todo el contenido del json
     Serial.println(F("Loading config from json File"));
     jsonVersion = doc["JSON_VERSION"].as<int>();
-    Serial.printf("Json Version: %d\n", jsonVersion);
     MIDI_CHANNEL = doc["MIDI_CHANNEL"].as<int>();
     Threshold_ON = doc["THRESHOLD_ON"].as<float>();
     Threshold_OFF = doc["THRESHOLD_OFF"].as<float>();
     Max_Velocity =  doc["MAX_VELOCITY"].as<float>();
     Gain_Velocity = doc["GAIN_VELOCITY"].as<float>();
     Duration_Velocity = doc["DURATION_VELOCITY"].as<int>();
-    Detection_Time = (unsigned long) doc["DETECTION_TIME"];
-    TEST_MIDI = (bool) doc["TEST_MIDI"];
+    Detection_Time = doc["DETECTION_TIME"].as<unsigned long>();
+    
     
     if(MIDI_CHANNEL < 1 || MIDI_CHANNEL > 16 ) MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;
     if(Threshold_ON < 0.0 || Threshold_ON > 200.0) Threshold_ON = THRESHOLD_ON_DEFAULT;
@@ -396,7 +396,6 @@ bool CargarConfiguracionDesdeSPIFF()
     for (int i = 0; i < NUM_SENSORES; i++)
     {
       CONTROL[i] = doc["CONTROL"][String(boardNumber)][i].as<int>();
-      Serial.println(CONTROL[i]);
     }
   }
 
@@ -428,24 +427,18 @@ void setup()
   SerialMidi.flush();
   // ADC Setup
   analogReadResolution(16);
+  int opciones = determinarOpcionesDeDip4(PIN_OPTIONS_0, PIN_OPTIONS_1);
+  
   // OTA
-  if (!digitalRead(PIN_OTA))
+  if (opciones == OPTIONS_OTA)
   {
     Serial.println(F("Starting OTA Update"));
     OverTheAirUpdate();
   }
   // Load Config from SPIFF
   bool ConfigCargadaDesdeSPIFF = CargarConfiguracionDesdeSPIFF();
-  if (ConfigCargadaDesdeSPIFF)
-  {
-    Serial.println(F("Config loaded from json file"));
-  }
-  else
-  {
-    Serial.println(F("Loading Default Config"));
-       
-  }
-  
+  ConfigCargadaDesdeSPIFF == true? Serial.println(F("Config loaded from json file")):Serial.println(F("Loading Default Config"));
+    
   // La presentación por el puerto serie se realiza en el segundo núcleo.
   crearTareaDePresentacionPorSerie();
 }
@@ -453,12 +446,17 @@ void setup()
 void loop()
 {
  
-  static bool noDetectarVelocidadOld = false;
-  bool noDetectarVelocidad = digitalRead(PIN_NO_DETECTAR_VELOCIDAD);
-  if(noDetectarVelocidad != noDetectarVelocidadOld){
-    noDetectarVelocidad == true? Serial.println("No detectar velocidad") : Serial.println("Detectar Velocidad");
-    noDetectarVelocidadOld = noDetectarVelocidad;
+  static bool DetectarVelocidadOld = true;
+  bool DetectarVelocidad = false;
+  int opciones = determinarOpcionesDeDip4(PIN_OPTIONS_0, PIN_OPTIONS_1);
+  if (opciones == OPTIONS_DETECTAR_VELOCIDAD) DetectarVelocidad = true;
+  if( opciones == OPTIONS_NO_DETECTAR_VELOCIDAD) DetectarVelocidad = false;
+  if(DetectarVelocidad != DetectarVelocidadOld){
+    DetectarVelocidad == true? Serial.println("Detectar velocidad") : Serial.println("No Detectar Velocidad");
+    DetectarVelocidadOld = DetectarVelocidad;
   }
+  
+
 
   if(boardNumber == 0) sustainPedalUpdate();
   
@@ -467,12 +465,10 @@ void loop()
   
   for (int i = 0; i < sensoresActivos; i++)
   {
-    noDetectarVelocidad == true? findNotes3NoVelocity(i):findNotes3(i);
+    DetectarVelocidad == true? findNotes3(i): findNotes3NoVelocity(i);
        
   }
   
-  if (!digitalRead(PIN_MIDI_TEST)){
-    TestMIDI(Serial, SerialMidi, 1);
-  }
-    
+  if(opciones == OPTIONS_TEST_MIDI) TestMIDI(Serial, SerialMidi, 500);
+      
 }

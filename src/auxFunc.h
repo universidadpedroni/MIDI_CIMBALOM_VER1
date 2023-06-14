@@ -9,15 +9,6 @@
 #define ESTADO_ON_OFF 1
 #define ESTADO_ON_NEW_NOTE 2
 
-int findBoard(int pinOctaveSel0, int pinOctaveSel1, int pinOctaveSel2){
-  int board = 0x00;
-  bitWrite(board, 0, !digitalRead(pinOctaveSel0));
-  bitWrite(board, 1, !digitalRead(pinOctaveSel1));
-  bitWrite(board, 2, !digitalRead(pinOctaveSel2));
-  if ( board >= MAX_BOARD_NUMBER) board = MAX_BOARD_NUMBER - 1;
-  return board;
-}
-
 
 void SerialDebugSignals(unsigned long time, int sensor, float velocity, int estado){
   
@@ -65,7 +56,7 @@ void SerialComandosDisponibles(HardwareSerial &MySerial){
   MySerial.println(F("D,n - Detection Time [0, 1000]"));
   MySerial.println(F("F,n - Threshold OFF [0, 0.8 * Threshold on]"));
   MySerial.println(F("G,n - Velocity Gain [1 10]"));
-  MySerial.println(F("M,n - Test Midi [0,1]"));
+  //MySerial.println(F("M,n - Test Midi [0,1]"));
   MySerial.println(F("P - Plot Signals ON / OFF"));
   MySerial.println(F("T,n - Threshold ON [0, 200]"));
   MySerial.println(F("S, n - enabled Sensors [1 - 16]" ));   // TODO: Ajustar a la cantidad de sensores disponibles.
@@ -79,8 +70,7 @@ void SerialShowConfig(HardwareSerial &MySerial,
                       unsigned long Detection_Time,
                       float Gain_Velocity,
                       int Duration_Velocity,
-                      bool TEST_MIDI,
-                      int octava)
+                      int boardNumber)
 {
   MySerial.println(F("System Config:"));
   MySerial.printf("Midi Channel Tx: %d \n", MIDI_CHANNEL);
@@ -88,10 +78,8 @@ void SerialShowConfig(HardwareSerial &MySerial,
   MySerial.printf("Detection Interval: %d ms\n",Detection_Time);
   MySerial.printf("Velocity Gain: %.2f\n", Gain_Velocity);
   MySerial.printf("Velocity Duration: %d\n", Duration_Velocity);
-  MySerial.printf("Octave: %d\n", octava + 1);
-  octava == 0? MySerial.println("ESP32 as Master") : MySerial.printf("ESP as Slave %d\n", octava);
-  MySerial.print(F("Initial MIDI Test: "));
-  TEST_MIDI == true? MySerial.println(F("Yes")) : MySerial.println(F("No"));
+  boardNumber == 0? MySerial.println("ESP32 as Master") : MySerial.printf("ESP as Slave %d\n", boardNumber);
+  
   
 
 }
@@ -167,22 +155,15 @@ void sendMIDI(HardwareSerial &SerialMidi, int cmd, int data1, int data2)
 	SerialMidi.write(data2);
 }
 
-void TestMIDI(HardwareSerial &MySerial,HardwareSerial &SerialMidi, int repeticiones)
+void TestMIDI(HardwareSerial &MySerial,HardwareSerial &SerialMidi, int duracionNota)
 {
   MySerial.println(F("Testing MIDI Channel by sending notes"));
-  int i = 0;
-  int j = 0;
-  while(i < repeticiones)
-  {
-    
-    sendMIDI(SerialMidi, NOTE_ON,CONTROL[j] ,MIDI_VEL_TEST);
-    
-    sendMIDI(SerialMidi, NOTE_ON,CONTROL[j] ,0);
-    j <  3? j++: j=0; 
-    MySerial.printf("Sending Note N° %d, MIDI code %d, Note %s\n",i, CONTROL[j],NOTAS[CONTROL[j]]);
-    delay(100);
-    i++;
-  }
-  MySerial.println("Midi Test Finished");
+  
+  for(int i = 0; i < 12; i++){
+    MySerial.printf("Sending Note N° %d, MIDI code %d, Note %s\n",i, CONTROL[i],NOTAS[CONTROL[i]]);
+    sendMIDI(SerialMidi, NOTE_ON,CONTROL[i] ,MIDI_VEL_TEST);
+    delay(duracionNota);
+    sendMIDI(SerialMidi, NOTE_OFF,CONTROL[i] ,0);
 
+  }
 }

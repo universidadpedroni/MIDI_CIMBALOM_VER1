@@ -13,7 +13,7 @@
     "DETECTION_TIME" : 200,
     "MAX_VELOCITY": 100,
     "GAIN_VELOCITY": 1,
-    "DURATION_VELOCITY": 10,
-    "TEST_MIDI" : 1                 
+    "DURATION_VELOCITY": 10
+                   
 }
 

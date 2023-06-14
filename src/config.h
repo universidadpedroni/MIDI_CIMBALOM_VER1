@@ -6,7 +6,7 @@
 int jsonVersion = -99;              // Versión del json. Se debe actualizar con el valor real.
 const int SOFTWARE_VERSION = 3;     // Versión de software
 const int HARDWARE_VERSION = 2;     // Versión del hardware.
-int sensoresActivos = 1;            // Cantidad de sensores con los que trabaja el sistema. [1 -12]
+int sensoresActivos = 12;            // Cantidad de sensores con los que trabaja el sistema. [1 -12]
 
 const long BAUDRATE = 115200;       // Baudrte for serial com
 const long MIDI_BAUDRATE = 31250;    // Baudrate for MIDI port
@@ -20,11 +20,10 @@ int sustainCurrentState = 1;    // =1 por el INPUT_PULLUP
 int sustainlastState = 1;
 
 // JSON FILE NAME
-//#define JSON_FILE_NAME "/config.json" 
 const char* JSON_FILE_NAME = "/config.json";
 
 // Direcciones para I2C
 int boardNumber = 0;
-const int MAX_BOARD_NUMBER = 5; // Cantidad de boards que usaremos.
+
 #endif
 
