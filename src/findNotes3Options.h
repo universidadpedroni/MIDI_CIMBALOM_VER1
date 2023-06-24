@@ -48,7 +48,7 @@ int contadorMax[NUM_SENSORES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};
 int CONTROL[NUM_SENSORES] = {0}; 
 
 const float THRESHOLD_ON_DEFAULT = 60.0;
-const float ATTENUATION_DEFAULT = 20;
+const float ATTENUATION_DEFAULT = 300;
 const int DURATION_VELOCITY_DEFAULT = 5;
 const unsigned long DETECTION_TIME_DEFAULT = 300;
 
