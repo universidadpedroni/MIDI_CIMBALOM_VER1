@@ -28,7 +28,7 @@ const int PIN_OCT_SEL_1 = GPIO_NUM_18;
 const int PIN_OCT_SEL_2 = GPIO_NUM_5;
 
 // Pines de los sensores
-const int PIN_ENV_0 = GPIO_NUM_13;    // ENV0
+const int PIN_ENV_0 = GPIO_NUM_13;    // ENV0 TODO: Dar vuelta estos valores!
 const int PIN_ENV_1 = GPIO_NUM_12;    // ENV1
 const int PIN_ENV_2 = GPIO_NUM_14;    // ENV2
 const int PIN_ENV_3 = GPIO_NUM_27;    // ENV3

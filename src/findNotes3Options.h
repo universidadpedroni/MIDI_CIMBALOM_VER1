@@ -30,33 +30,32 @@ const int CANALES_ADC[] = { PIN_ENV_0,
 
 const int NUM_SENSORES = 12;
 
-int noteState[NUM_SENSORES] = {NOTE_OFF};                               
+int noteState[NUM_SENSORES] = {NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF,
+                               NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF, NOTE_OFF,};                               
 bool notaEnviada[NUM_SENSORES] = {false};
-float amplik[NUM_SENSORES][3] = {0}; // Sensor reading
-float movingAvVelocityk[NUM_SENSORES] = {0};  // Sensor filtering.
-unsigned long detectionTime[NUM_SENSORES] = {0};
+float amplik[NUM_SENSORES][3] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,}; // Sensor reading
+float movingAvVelocityk[NUM_SENSORES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};  // Sensor filtering.
+unsigned long detectionTime[NUM_SENSORES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};
 
-float maxVelocity[NUM_SENSORES] = {0};
+float maxVelocity[NUM_SENSORES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};
 unsigned long MAX_LATENCY = 150; // Must be lower than DETECTION_TIME
 
-int contadorMax[NUM_SENSORES] = {0};
+int contadorMax[NUM_SENSORES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};
 
 // Constants with DEFAULT VALUES. All of this parameters are updated using a json file.
 
 // notes to play, corresponding to all sensors: 
 int CONTROL[NUM_SENSORES] = {0}; 
 
-const float THRESHOLD_ON_DEFAULT = 100.0;
-const float MAX_VELOCITY_DEFAULT = 17000.0;
-const float GAIN_VELOCITY_DEFAULT = 1.0;
+const float THRESHOLD_ON_DEFAULT = 50.0;
+const float ATTENUATION_DEFAULT = 20;
 const int DURATION_VELOCITY_DEFAULT = 5;
 const unsigned long DETECTION_TIME_DEFAULT = 300;
 
 
 float Threshold_ON = THRESHOLD_ON_DEFAULT;
 float Threshold_OFF =0.5 *  THRESHOLD_ON_DEFAULT;
-float Max_Velocity = MAX_VELOCITY_DEFAULT;
-float Gain_Velocity = GAIN_VELOCITY_DEFAULT;
+float Attenuation = ATTENUATION_DEFAULT;
 int Duration_Velocity = DURATION_VELOCITY_DEFAULT;
 unsigned long Detection_Time = DETECTION_TIME_DEFAULT;
 

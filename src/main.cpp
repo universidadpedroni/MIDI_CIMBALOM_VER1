@@ -11,9 +11,7 @@
 // OTA con Access Point
 #include <wifiFunctions.h>
 
-// RTOS
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+
 
 
 // TODO: ESP32 as slave
@@ -33,7 +31,7 @@
 // https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
 // https://randomnerdtutorials.com/decoding-and-encoding-json-with-arduino-or-esp8266/
 
-TaskHandle_t presentacionPorSerieTaskHandle;
+
 
 
 
@@ -44,19 +42,20 @@ void findNotes3(int sensor)
   unsigned long currentTime = millis();
   
   // Reading the amplitude of the signal and going through moving average filter
-  amplik[sensor][0] =  Gain_Velocity * (float)analogRead(CANALES_ADC[sensor]) / Max_Velocity;
+  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]) / Attenuation;
   movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
- 
-
+  
+  
   // *** State Machine ***
-  // 1. NOTE OFF -> NOTE OFF
-  if((noteState[sensor] == NOTE_OFF) && 
-     (movingAvVelocityk[sensor] < Threshold_ON))
-     {
-        // Nothing to do here
-     }
+  // 1. NOTE OFF -> NOTE OFF ( No necesito pasar por este estado)
+  //if((noteState[sensor] == NOTE_OFF) && 
+  //   (movingAvVelocityk[sensor] < Threshold_ON))
+  //   {
+  //      //Serial.printf("NOTE OFF - NOTE OFF, sensor %d\n", sensor);
+  //      // Nothing to do here
+  //   }
   // 2. NOTE OFF - NOTE ON   
-  else if ((noteState[sensor] == NOTE_OFF) && 
+  if ((noteState[sensor] == NOTE_OFF) && 
            (movingAvVelocityk[sensor] > Threshold_ON))
   {
     noteState[sensor] = NOTE_ON;
@@ -65,6 +64,7 @@ void findNotes3(int sensor)
     notaEnviada[sensor] = false;
     contadorMax[sensor] = 0;
     if(serialPlotSignals) SerialShowSignalsLabels(Serial);
+    //Serial.printf("NOTE OFF - NOTE ON, sensor %d\n", sensor);
     
   }
   // 3. NOTE ON - NOTE ON, No Max
@@ -110,7 +110,7 @@ void findNotes3(int sensor)
     sendMIDI(SerialMidi, NOTE_OFF,CONTROL[sensor],0);
     if(SHOW_MIDI_MESSAGE_SENT) ShowMidiMessage(Serial, NOTE_ON, CONTROL[sensor],0);
     if(serialPlotSignals) SerialShowSignals(Serial, Threshold_ON, Threshold_OFF, movingAvVelocityk[sensor], maxVelocity[sensor],0);  
-       
+    //Serial.printf("NOTE ON - NOTE OFF, sensor %d\n", sensor);   
   }
   
   // Updates
@@ -124,7 +124,7 @@ void findNotes3NoVelocity(int sensor)
   unsigned long currentTime = millis();
   
   // Reading the amplitude of the signal and going through moving average filter
-  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]);
+  amplik[sensor][0] =  (float)analogRead(CANALES_ADC[sensor]) / Attenuation;
   movingAvVelocityk[sensor] = (amplik[sensor][0] + amplik[sensor][1] + amplik[sensor][2]) / 3;
   
 
@@ -179,31 +179,20 @@ void findNotes3NoVelocity(int sensor)
 }
 
 
-void presentacionPorSerieTask(void *parameter){
+void presentacionPorSerie(){
   SerialPresentation(Serial, SOFTWARE_VERSION, jsonVersion, HARDWARE_VERSION);
-  SerialShowActiveSensors(Serial, sensoresActivos);
   SerialComandosDisponibles(Serial);
   SerialShowConfig(Serial, MIDI_CHANNEL,
                   Threshold_ON, Threshold_OFF,
-                  Detection_Time, Gain_Velocity,
+                  Detection_Time, Attenuation,
                   Duration_Velocity,
                   boardNumber);   
   //Serial.printf("Tarea ejecutándose en el núcleo %d\n", xPortGetCoreID());
   SerialShowConfigSensores(Serial, NUM_SENSORES, CONTROL);
   SerialSetupFinished(Serial);
-  vTaskDelete(NULL);
+  
 }
 
-void crearTareaDePresentacionPorSerie(){
-  xTaskCreatePinnedToCore(presentacionPorSerieTask,             // Función de la tarea
-                          "Presentacion Por Serie",             // Nombre de la tarea (opcional)
-                            10000,                              // Tamaño de la pila de la tarea (ajustar según necesidad)
-                            NULL,                               // Parámetro de la tarea (puede ser NULL)
-                            1,                                  // Prioridad de la tarea (mayor valor = mayor prioridad)
-                            &presentacionPorSerieTaskHandle,    // Manejador de la tarea (para detenerla o suspenderla si es necesario)
-                            1);                                 // Núcleo en el que se ejecutará la tarea (0 para el primer núcleo, 1 para el segundo)
-
-}
 
 void GPIOSetup()
 {
@@ -242,8 +231,7 @@ bool GuardarConfiguracionEnSPIFF()
   doc["MIDI_CHANNEL"] = MIDI_CHANNEL;
   doc["THRESHOLD_ON"] = Threshold_ON;
   doc["THRESHOLD_OFF"] = Threshold_OFF;
-  doc["MAX_VELOCITY"] = Max_Velocity;
-  doc["GAIN_VELOCITY"] = Gain_Velocity;
+  doc["ATTENUATION"] = Attenuation;
   doc["DETECTION_TIME"] = Detection_Time;
   doc["DURATION_VELOCITY"] = Duration_Velocity;
   
@@ -281,9 +269,9 @@ void serialCommands()
           Threshold_OFF = Serial.parseFloat();
           Threshold_OFF = constrain(Threshold_OFF, 0.0, 0.8 * Threshold_ON);
           break;
-        case 'G': // Velocity Gain
-          Gain_Velocity = Serial.parseFloat();
-          Gain_Velocity = constrain(Gain_Velocity, 1, 10);
+        case 'G': // Attenuation
+          Attenuation = Serial.parseFloat();
+          Attenuation = constrain(Attenuation, 1, 1000);
           break;
         case 'H': // show help
           SerialComandosDisponibles(Serial);
@@ -310,11 +298,6 @@ void serialCommands()
         case 'T':   // ThresHold ON
           Threshold_ON = Serial.parseFloat();
           Threshold_ON = constrain(Threshold_ON, 0, 200);
-          break;
-        case 'S': // Working sensors. Usada para determinar con cuantos sensores se trabajará
-          sensoresActivos = Serial.parseInt();
-          sensoresActivos = constrain(sensoresActivos, 1, NUM_SENSORES);
-          SerialShowActiveSensors(Serial, sensoresActivos);
           break;
         default:
           Serial.printf("Comando recibido: %c desconocido\n", comando);
@@ -378,8 +361,7 @@ bool CargarConfiguracionDesdeSPIFF()
     MIDI_CHANNEL = doc["MIDI_CHANNEL"].as<int>();
     Threshold_ON = doc["THRESHOLD_ON"].as<float>();
     Threshold_OFF = doc["THRESHOLD_OFF"].as<float>();
-    Max_Velocity =  doc["MAX_VELOCITY"].as<float>();
-    Gain_Velocity = doc["GAIN_VELOCITY"].as<float>();
+    Attenuation =  doc["ATTENUATION"].as<float>();
     Duration_Velocity = doc["DURATION_VELOCITY"].as<int>();
     Detection_Time = doc["DETECTION_TIME"].as<unsigned long>();
     
@@ -388,7 +370,6 @@ bool CargarConfiguracionDesdeSPIFF()
     if(Threshold_ON < 0.0 || Threshold_ON > 200.0) Threshold_ON = THRESHOLD_ON_DEFAULT;
     if(Threshold_OFF < 0.0 || Threshold_OFF > Threshold_ON) Threshold_OFF = 0.5 * Threshold_ON;
     if(Detection_Time < 0) Detection_Time = DETECTION_TIME_DEFAULT;
-    if(Gain_Velocity < 1) Gain_Velocity = GAIN_VELOCITY_DEFAULT;
     if(Duration_Velocity < 1 || Duration_Velocity > 100) Duration_Velocity = DURATION_VELOCITY_DEFAULT;
     
     
@@ -440,7 +421,7 @@ void setup()
   ConfigCargadaDesdeSPIFF == true? Serial.println(F("Config loaded from json file")):Serial.println(F("Loading Default Config"));
     
   // La presentación por el puerto serie se realiza en el segundo núcleo.
-  crearTareaDePresentacionPorSerie();
+  presentacionPorSerie();
 }
 
 void loop()
@@ -458,12 +439,12 @@ void loop()
   
 
 
-  if(boardNumber == 0) sustainPedalUpdate();
+  //if(boardNumber == 0) sustainPedalUpdate();
   
   serialCommands();
   
   
-  for (int i = 0; i < sensoresActivos; i++)
+  for (int i = 0; i < NUM_SENSORES; i++)
   {
     DetectarVelocidad == true? findNotes3(i): findNotes3NoVelocity(i);
        

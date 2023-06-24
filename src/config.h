@@ -6,7 +6,7 @@
 int jsonVersion = -99;              // Versión del json. Se debe actualizar con el valor real.
 const int SOFTWARE_VERSION = 3;     // Versión de software
 const int HARDWARE_VERSION = 2;     // Versión del hardware.
-int sensoresActivos = 12;            // Cantidad de sensores con los que trabaja el sistema. [1 -12]
+
 
 const long BAUDRATE = 115200;       // Baudrte for serial com
 const long MIDI_BAUDRATE = 31250;    // Baudrate for MIDI port

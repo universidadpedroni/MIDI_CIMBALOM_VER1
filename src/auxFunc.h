@@ -68,7 +68,7 @@ void SerialShowConfig(HardwareSerial &MySerial,
                       float Threshold_ON,
                       float Threshold_OFF,
                       unsigned long Detection_Time,
-                      float Gain_Velocity,
+                      float attenuation,
                       int Duration_Velocity,
                       int boardNumber)
 {
@@ -76,7 +76,7 @@ void SerialShowConfig(HardwareSerial &MySerial,
   MySerial.printf("Midi Channel Tx: %d \n", MIDI_CHANNEL);
   MySerial.printf("Threshold ON: %.2f, Threshold OFF: %.2f\n",Threshold_ON, Threshold_OFF );
   MySerial.printf("Detection Interval: %d ms\n",Detection_Time);
-  MySerial.printf("Velocity Gain: %.2f\n", Gain_Velocity);
+  MySerial.printf("Atenuation: %.2f\n", attenuation);
   MySerial.printf("Velocity Duration: %d\n", Duration_Velocity);
   boardNumber == 0? MySerial.println("ESP32 as Master") : MySerial.printf("ESP as Slave %d\n", boardNumber);
   

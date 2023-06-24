@@ -1,5 +1,5 @@
 {
-    "JSON_VERSION" : 4,
+    "JSON_VERSION" : 5,
     "MIDI_CHANNEL": 1,
     "CONTROL":{
         "0":[58, 56, 54, 52, 50, 48, 46, 44, 42, 40, 38, 36],
@@ -8,11 +8,10 @@
         "3":[61, 63, 65, 67, 69, 71, 73, 75, 77, 79, 81, 83],
         "4":[37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59]
     },
-    "THRESHOLD_ON": 90,
+    "THRESHOLD_ON": 50,
     "THRESHOLD_OFF": 25,
     "DETECTION_TIME" : 200,
-    "MAX_VELOCITY": 100,
-    "GAIN_VELOCITY": 1,
+    "ATTENUATION": 300,
     "DURATION_VELOCITY": 10
                    
 }
