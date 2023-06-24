@@ -7,7 +7,7 @@
 
 // GENERALES
 //https://anotherproducer.com/online-tools-for-musicians/midi-cc-list/
-const int MIDI_CHANNEL_DEFAULT = 5; // Default MIDI CHANNEL
+const int MIDI_CHANNEL_DEFAULT = 1; // Default MIDI CHANNEL
 int MIDI_CHANNEL = MIDI_CHANNEL_DEFAULT;           
 const int NOTE_ON = 0x90;
 const int NOTE_OFF = 0x80;
@@ -47,7 +47,7 @@ int contadorMax[NUM_SENSORES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};
 // notes to play, corresponding to all sensors: 
 int CONTROL[NUM_SENSORES] = {0}; 
 
-const float THRESHOLD_ON_DEFAULT = 50.0;
+const float THRESHOLD_ON_DEFAULT = 60.0;
 const float ATTENUATION_DEFAULT = 20;
 const int DURATION_VELOCITY_DEFAULT = 5;
 const unsigned long DETECTION_TIME_DEFAULT = 300;

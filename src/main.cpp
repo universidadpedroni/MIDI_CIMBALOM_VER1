@@ -7,6 +7,7 @@
 #include "debugConstants.h"
 #include <auxFunc.h>
 #include <dipSwitchFunc.h>
+#include <midiNotesPerBoard.h>
 
 // OTA con Access Point
 #include <wifiFunctions.h>
@@ -303,7 +304,7 @@ void serialCommands()
           Serial.printf("Comando recibido: %c desconocido\n", comando);
           break;
       }
-      GuardarConfiguracionEnSPIFF();
+     //GuardarConfiguracionEnSPIFF();
     }
       
 }
@@ -408,6 +409,10 @@ void setup()
   SerialMidi.flush();
   // ADC Setup
   analogReadResolution(16);
+  for (int i = 0; i < NUM_SENSORES; i++){
+    CONTROL[i] = NOTAS_POR_BOARD[boardNumber][i];
+  }
+
   int opciones = determinarOpcionesDeDip4(PIN_OPTIONS_0, PIN_OPTIONS_1);
   
   // OTA
@@ -417,8 +422,8 @@ void setup()
     OverTheAirUpdate();
   }
   // Load Config from SPIFF
-  bool ConfigCargadaDesdeSPIFF = CargarConfiguracionDesdeSPIFF();
-  ConfigCargadaDesdeSPIFF == true? Serial.println(F("Config loaded from json file")):Serial.println(F("Loading Default Config"));
+  //bool ConfigCargadaDesdeSPIFF = CargarConfiguracionDesdeSPIFF();
+  //ConfigCargadaDesdeSPIFF == true? Serial.println(F("Config loaded from json file")):Serial.println(F("Loading Default Config"));
     
   // La presentación por el puerto serie se realiza en el segundo núcleo.
   presentacionPorSerie();
